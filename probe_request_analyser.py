@@ -1,9 +1,12 @@
 """
-    Probe Request Capture
+    Probe Request Analyser
 
     Author: Yacin Belmihoub-Martel @yacinbm (yacin.belmihoubmartel@gmail.com)
 
     Inspired by wifite (https://github.com/derv82/wifite)
+    
+    This application aims to estimate the distance of a user based on the strength 
+    of the received probe requests coming from a device. 
 
     TODO:
     Capture probe requests using airodump-ng
