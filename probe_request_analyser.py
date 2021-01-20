@@ -126,18 +126,33 @@ def checkMonitorMode(interface):
             return True
     return False
 
+def checkDependencies():
+        """
+            Check if all wifi monitoring dependencies are installed.
+            Returns true iff all dependencies are installed, else returns false
+        """
+        dependencies = ["aircrack-ng", "airodump-ng"]
+        for dep in dependencies:
+            if programInstalled(dep) is None:
+                print(f"Probe Request Capture requires {dep} installed. "
+                       f"Please install aircrack-ng using sudo apt-get install aicrack-ng")
+                return False
+        return True
+
 class CaptureEngine():
     def __init__(self, interface=None, enableLog=False):
         # Attributes
         self.interface = interface
         self.enableLog = enableLog
+        self.sniffer = None
         self.capturedPackets = []
 
         # Initialize the engine
-        self.checkDependencies()
         self.setup()
     
     def setup(self):
+        checkDependencies()
+
         #TODO: Check if the system is using the QCA6174
         applyQca6174Fix()
 
@@ -169,39 +184,26 @@ class CaptureEngine():
         #TODO: Check if the device is using QCA6174
         disableMonitorMode(self.interface)
         removeQca6174Fix()
-
-    def checkDependencies(self):
-        """
-            Check if all wifi monitoring dependencies are installed.
-            Returns true iff all dependencies are installed, else returns false
-        """
-        dependencies = ["aircrack-ng", "airodump-ng"]
-        for dep in dependencies:
-            if programInstalled(dep) is None:
-                print(f"Probe Request Capture requires {dep} installed. "
-                       f"Please install aircrack-ng using sudo apt-get install aicrack-ng")
-                return False
-        return True
     
-    def startCapture(self):
-        #TODO: Add logging
-        bpf = "wlan type mgt subtype probe-req" # Capture only probe requests
-        sniffer = AsyncSniffer(iface=self.interface, prn=self.captureCallback, filter=bpf)
-        
-        print("Staring capture...")
-        sniffer.start()
-        
-
     def captureCallback(self, pkt):
         """
             Called upon the reception of a packet.
         """
         self.capturedPackets.append(pkt)
 
-
+    def startCapture(self):
+        #TODO: Add logging
+        if self.sniffer is None:
+            bpf = "wlan type mgt subtype probe-req" # Capture only probe requests
+            self.sniffer = AsyncSniffer(iface=self.interface, prn=self.captureCallback, filter=bpf)
         
-
-
+        print("Staring capture...")
+        self.sniffer.start()
+    
+    def stopCapture(self):
+        print("Stoping capture.")
+        self.sniffer.stop()
+        
 if __name__ == "__main__":
     if os.getuid() != 0:
         exit("Run as root.")
@@ -224,3 +226,7 @@ if __name__ == "__main__":
     # Create capture engine
     engine = CaptureEngine(options.interface, options.enableLogging)
     engine.startCapture()
+    sleep(5)
+    engine.stopCapture()
+    print(type(engine.capturedPackets[-1]))
+    engine.exitGracefully()
