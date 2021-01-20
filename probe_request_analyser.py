@@ -6,7 +6,8 @@
     Inspired by wifite (https://github.com/derv82/wifite)
     
     This application aims to estimate the distance of a user based on the strength 
-    of the received probe requests coming from a device. 
+    of the received probe requests coming from a device. It uses pyshark to sniff
+    live traffic from the air and analyses the packets directly.
 
     TODO:
     Capture probe requests using airodump-ng
@@ -27,6 +28,20 @@ import argparse # Argument parsing
 
 # Executing external processes
 import subprocess
+
+# External modules
+try:
+    #import pyshark
+    from scapy.all import AsyncSniffer
+except ImportError:
+    exit("Pyshark is required for this application, please install with"
+            "\npip install pyshark")
+
+try:
+    import pandas as pd
+except ImportError:
+    exit("Pandas is required for this application, please install with"
+            "\npip install pyshark")
 
 def programInstalled(programName):
     """
@@ -113,8 +128,12 @@ def checkMonitorMode(interface):
 
 class CaptureEngine():
     def __init__(self, interface=None, enableLog=False):
+        # Attributes
         self.interface = interface
         self.enableLog = enableLog
+        self.capturedPackets = []
+
+        # Initialize the engine
         self.checkDependencies()
         self.setup()
     
@@ -142,12 +161,12 @@ class CaptureEngine():
             else:
                 interface = list(interfaces.keys())[0]
                 setMonitorMode(interface)
-                interface+="mon"
+                interface+="mon" # Save the new interface name
             
             self.interface = interface
     
     def exitGracefully(self):
-        #TODO: reload default driver for QCA6174A 
+        #TODO: Check if the device is using QCA6174
         disableMonitorMode(self.interface)
         removeQca6174Fix()
 
@@ -165,8 +184,23 @@ class CaptureEngine():
         return True
     
     def startCapture(self):
-        #TODO: Find a way to input the captures directly into python as an object (dataframe or other).
-        pass        
+        #TODO: Add logging
+        bpf = "wlan type mgt subtype probe-req" # Capture only probe requests
+        sniffer = AsyncSniffer(iface=self.interface, prn=self.captureCallback, filter=bpf)
+        
+        print("Staring capture...")
+        sniffer.start()
+        
+
+    def captureCallback(self, pkt):
+        """
+            Called upon the reception of a packet.
+        """
+        self.capturedPackets.append(pkt)
+
+
+        
+
 
 if __name__ == "__main__":
     if os.getuid() != 0:
@@ -189,3 +223,4 @@ if __name__ == "__main__":
 
     # Create capture engine
     engine = CaptureEngine(options.interface, options.enableLogging)
+    engine.startCapture()
