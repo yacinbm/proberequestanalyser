@@ -6,8 +6,22 @@
     Inspired by wifite (https://github.com/derv82/wifite)
     
     This application aims to estimate the distance of a user based on the strength 
-    of the received probe requests coming from a device. It uses pyshark to sniff
+    of the received probe requests coming from a device. It uses scaby to sniff
     live traffic from the air and analyses the packets directly.
+
+    -- INSTALLATION -- 
+    
+    When using this program with the QCA6174A, you need to install a custom firmware
+    that supports rawmode and cryptmode. The installation procedure goes as follows:
+    (Note, the card used in the buspas module is hw3.0)
+        * Back up the original firmware for your machine:
+            cd /lib/firmware/ath10k/QCA6174
+            sudo cp -r hw[hw_version] hw[hw_version]_ori
+        * Remove the old firmware files:
+            sudo rm /hw[hw_version]/firmware-*.bin
+        * Copy the new firmware file:
+            sudo cp /path/to/fw_file/[your firmware] ./firmware-2.bin
+    Reboot your system and verify that your wifi interface is sill showing with ifconfig.
 
     TODO:
     Capture probe requests using airodump-ng
@@ -34,8 +48,8 @@ try:
     #import pyshark
     from scapy.all import AsyncSniffer
 except ImportError:
-    exit("Pyshark is required for this application, please install with"
-            "\npip install pyshark")
+    exit("Scapy is required for this application, please install with"
+            "\npip install scapy")
 
 try:
     import pandas as pd
@@ -135,7 +149,7 @@ def checkDependencies():
         for dep in dependencies:
             if programInstalled(dep) is None:
                 print(f"Probe Request Capture requires {dep} installed. "
-                       f"Please install aircrack-ng using sudo apt-get install aicrack-ng")
+                       f"Please install aircrack-ng using \nsudo apt-get install aicrack-ng")
                 return False
         return True
 
@@ -151,7 +165,8 @@ class CaptureEngine():
         self.setup()
     
     def setup(self):
-        checkDependencies()
+        if not checkDependencies():
+            exit()
 
         #TODO: Check if the system is using the QCA6174
         applyQca6174Fix()
