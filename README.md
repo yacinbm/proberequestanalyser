@@ -1,2 +1,2 @@
 # proberequestanalyser
-Probe Request Analyzer based on airodump-ng
+Probe Request Analyzer based on Scapy
