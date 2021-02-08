@@ -66,21 +66,20 @@ import subprocess
 try:
     from scapy.all import *
 except ImportError:
-    exit("Scapy is required for this application, please install with"
-            "\npip install scapy")
+    exit(f"{bcolors.FAIL}Scapy is required for this application, please install with"
+            f"\npip install scapy{bcolors.ENDC}")
 
 try:
     from netaddr import *
 except ImportError:
-    exit("Netaddr is required for this application, please install with"
-            "\npip install netaddr")
+    exit(f"{bcolors.FAIL}Netaddr is required for this application, please install with"
+            f"\npip install netaddr{bcolors.ENDC}")
 
 try:
     import pandas as pd
 except ImportError:
-    exit("Pandas is required for this application, please install with"
-            "\npip install pyshark")
-
+    exit(f"{bcolors.FAIL}Pandas is required for this application, please install with"
+            f"\npip install pandas{bcolors.ENDC}")
 
 def programInstalled(programName):
     """
@@ -96,7 +95,7 @@ def setMonitorMode(interface):
     try:
         output = subprocess.call(["sudo", "airmon-ng", "start", interface], stdout=open(os.devnull, 'wb'))
         if output != 0:
-            raise RuntimeError(f'airmon-ng start {interface} failed!')
+            raise RuntimeError(f'{bcolors.FAIL}airmon-ng start {interface} failed!{bcolors.ENDC}')
     except RuntimeError as e:
         print(e)
         exit()
@@ -109,7 +108,7 @@ def disableMonitorMode(interface):
     try:
         output = subprocess.call(["sudo", "airmon-ng", "stop", interface], stdout=open(os.devnull, 'wb'))
         if output != 0:
-            raise RuntimeError(f'airmon-ng stop {interface} failed!')
+            raise RuntimeError(f'{bcolors.FAIL}airmon-ng stop {interface} failed!{bcolors.ENDC}')
     except RuntimeError as e:
         exit(e)
 
@@ -120,7 +119,7 @@ def getCompatibleInterfaces():
     output = subprocess.check_output(["iwconfig"],stderr=open(os.devnull, 'wb')).decode("utf-8").split("\n\n")
     output = list(filter(None, output)) # Remove empty strings
     if not output:
-        exit("No compatible interface found. Make sure your wifi card supports Monitor mode.")
+        exit(f"{bcolors.FAIL}No compatible interface found. Make sure your wifi card supports Monitor mode.{bcolors.ENDC}")
     
     interfaceDict = {}
     for interface in output:
@@ -147,43 +146,100 @@ def checkDependencies():
         dependencies = ["aircrack-ng", "airodump-ng"]
         for dep in dependencies:
             if programInstalled(dep) is None:
-                print(f"Probe Request Capture requires {dep} installed. "
-                       f"Please install aircrack-ng using \nsudo apt-get install aicrack-ng")
+                print(f"{bcolors.FAIL}Probe Request Capture requires {dep} installed. "
+                       f"Please install aircrack-ng using \nsudo apt-get install aicrack-ng{bcolors.ENDC}")
                 return False
         return True
 
-class CaptureEngine():
-    # TODO: Add functionnality to read from .pcap file
-    def __init__(self, interface=None, filePath=None, log=False):
-        # Attributes
-        self.interface = interface
-        self.log = log
-        self.sniffer = None
-        self.capturedPackets = []
-        self.offline = False
+class CaptureEngine:
+    """
+        Capture engine component. This is a singleton component, meaning that only one capture engine
+        can exist at any time. This is so we can revert back the interface in case of a problem.
 
-        # Initialize the engine
-        if not filePath:
-            self._setup()
+        use:
+            captureEngine = CaptureEngine(interface="wan0", log=True)
+            captureEngine.startCapture()
+            [...do stuff here...]
+            captureEngine.stopCapture()
+            pkts = catureEngine.capturedPackets
+            data = captureEngine.extractData(pkts)
+            captureEngine.exitGracefully()
+
+        Class arguments:
+            interface       -   [String] Interface to do the capture on. Not required if filePath was
+                                specified, as the engine will start in offline mode
+            filePath        -   [String] Path to the capture file to be read for analysis. Specifying
+                                a file path will start the engine in offline mode, which will prevent 
+                                user to do capture over the air.
+            log             -   [Bool] Specifies if the traffic captured over the air will be saved
+                                to the disk in pcap format. The saved data is the raw data captured
+                                from Scapy. 
+
+        Class attributes:
+            capturedPackets -   [List] List of scapy packets captured by the engine.
+
+
+        Class methods:
+            getInstance()   -   Return the current instance of the CaptureEngine component
+            startCapture()  -   Starts a capture on the configured interface. If no interface was selected at
+                                creation, it run capture on the first compatible one. The capture is
+                                non-blocking, meaning you can start a capture and do other stuff at the same
+                                time.
+            stopCapture()   -   Stops the capture on the configured interface.
+            extractPacketData(pkts)     -   Takes a single packet, or a list of packets, and extracts the 
+                                            relenvant Dot11 and Radio tap informations from it. Returns
+                                            a list of dictionnaries of information fields by name.
+            exitGracefully()    -   Reverts the interface back into managed mode.
+    """
+    # TODO: Add function to change the class attributes, like interface, log and offlineMode.
+    def getInstance():
+        """
+            Return the capture engine instance.
+        """
+        if CaptureEngine.__instance == None:
+            return CaptureEngine()
         else:
-            # Run the engine offline from file
-            self.offline = True
-            self.capturedPackets = rdpcap(filePath)
+            return CaptureEngine.__instance
     
-    def _setup(self):
+    __instance = None
+    def __init__(self, interface=None, filePath=None, log=False):
+        if not CaptureEngine.__instance:
+            CaptureEngine.__instance = self
+            
+            # Attributes
+            self.capturedPackets = []
+            self.__interface = interface
+            self.__log = log
+            self.__sniffer = None
+            self.__offline = False
+
+            # Initialize the engine
+            if not filePath:
+                self.__setup()
+            else:
+                # Run the engine offline from file
+                self.__offline = True
+                self.capturedPackets = rdpcap(filePath)
+        else:
+            print(f"{bcolors.WARNING}The CaptureEngine class is a sigleton, please use getInstance() to use the previous instance of the class.{bcolors.ENDC}")
+    
+    def __setup(self):
         if not checkDependencies():
             exit()
+        
+        if self.__offline:
+            return
 
         # Setup the interface
-        if self.interface is not None:
-            if not checkMonitorMode(self.interface):
-                setMonitorMode(self.interface)
+        if self.__interface is not None:
+            if not checkMonitorMode(self.__interface):
+                setMonitorMode(self.__interface)
         
         # No given interface, select the first compatible one
         else:
             interfaces = getCompatibleInterfaces()
             if not interfaces:
-                exit("No compatible interface found. Make sure your wifi card is compatible with Monitor Mode.")
+                exit(f"{bcolors.FAIL}No compatible interface found. Make sure your wifi card is compatible with Monitor Mode.{bcolors.ENDC}")
 
             # Check for monitor mode interfaces
             monitorInterfaces = [name for (name, mode) in interfaces.items() if mode == "Monitor"]
@@ -198,15 +254,15 @@ class CaptureEngine():
                 interface+="mon" 
             
             # Save the interface name
-            self.interface = interface
+            self.__interface = interface
         
         # Setup the sniffer
-        if self.sniffer is None:
+        if self.__sniffer is None:
             # Filter received packets to receive only probe req.
             # For more info on the Berkley Packet Filter syntax, 
             # see https://biot.com/capstats/bpf.html
             bpf = "wlan type mgt subtype probe-req"
-            self.sniffer = AsyncSniffer(iface=self.interface, prn=self.captureCallback, filter=bpf)
+            self.__sniffer = AsyncSniffer(iface=self.__interface, prn=self.__captureCallback, filter=bpf)
         else:
             pass
 
@@ -214,10 +270,10 @@ class CaptureEngine():
         """
             Reverts the wireless adapter to managed mode and does a cleanup.
         """
-        if not self.offline:
-            disableMonitorMode(self.interface)
+        if not self.__offline:
+            disableMonitorMode(self.__interface)
     
-    def captureCallback(self, pkt):
+    def __captureCallback(self, pkt):
         """
             Packet reception callback function.
 
@@ -229,28 +285,32 @@ class CaptureEngine():
         """
             Starts the capture on the engine interface.
         """
-        if self.sniffer is None:
-            print("Engine started in offline mode, no capture available.")
+        if self.__offline:
+            print(f"{bcolors.WARNING}Engine started in offline mode, no capture available.{bcolors.ENDC}")
             return
         
         print("Starting capture...")
-        self.sniffer.start()
+        self.__sniffer.start()
+        self.__running = True
     
     def stopCapture(self):
         """
             Stops the capture on the sniffer.
         """
-        if self.sniffer is None:
-            print("Engine started in offline mode, no capture available.")
+        if self.__offline is None:
+            print(f"{bcolors.WARNING}Engine started in offline mode, no capture available.{bcolors.ENDC}")
             return
         
-        print("Stoping capture.")
-        self.sniffer.stop()
+        if self.__running:
+            print("Stoping capture.")
+            self.__sniffer.stop()
+        else:
+            print("No capture currently running.")
 
         # Log captured data
-        if self.log:
+        if self.__log:
             dateTime = datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
-            wrpcap(f"sniffed_{self.interface}_{dateTime}.pcap", self.capturedPackets)
+            wrpcap(f"sniffed_{self.__interface}_{dateTime}.pcap", self.capturedPackets)
 
     def extractPacketData(self,pkts):
         """
@@ -259,27 +319,78 @@ class CaptureEngine():
             
             Returns a pandas dataFrame containing all the extracted data.
         """
-        from IPython.display import display
+        
         df = pd.DataFrame()
         for pkt in pkts:
-            dataDict = {}
             # Radio Tap Fields extraction
-            #dataDict.update(self.getRadioTapFields(pkt))
+            try:
+                radioTapDict = self.__getRadioTapFields(pkt)
+                radioTapDf = pd.DataFrame([radioTapDict], columns=sorted(radioTapDict.keys()))
+            except Exception as e:
+                print(f"Warning - {bcolors.WARNING}{e}: Error getting radio tap data, skipping packet.{bcolors.ENDC}")
             
             # Dot11 Elements extraction
-            dataDict.update(self.getDot11Fields(pkt))
+            try:
+                dot11Dict = self.__getDot11Fields(pkt)
+                dot11Df = pd.DataFrame([dot11Dict], columns=sorted(dot11Dict.keys()))
+            except Exception as e:
+                print(f"Warning - {bcolors.WARNING}{e}: Error getting dot11 data, skipping packet.{bcolors.ENDC}")
             
-            df = df.append(dataDict, ignore_index=True)
-        
+            # Output dataframe
+            df2 = pd.concat([radioTapDf, dot11Df], axis=1)
+            df = pd.concat([df, df2], ignore_index=True, sort=True)
+
         return df
 
-    def getRadioTapFields(self, pkt):
+    def __isMacRadom(self, addr):
         """
-            
+            Checks if Mac address is random. 
+            Addr is a 
+            Return True if random, else returns False.
         """
-        pass
+        byteList = ['2', '3', '6', '7',  'a', 'b',  'e', 'f']
+        secondByte = addr[1]
+        if secondByte in byteList:
+            return True
+        else:
+            return False
 
-    def getDot11Fields(self, pkt):
+    def __getRadioTapFields(self, pkt):
+        """
+            This function iterates through all the received Radio Tap fields in the
+            packet. 
+            
+            Returns a dictionary of values by field name.
+        """
+        dataDict = {}
+
+        # Check if the packet is a valid Dot11 packet
+        if not pkt.haslayer(RadioTap):
+            print(f"{bcolors.WARNING}Packet has no radio tap layer.{bcolors.ENDC}")
+            return None
+        
+        ignoredFields = ["notdecoded", "Ext"]
+
+        radioTapElt = pkt.getlayer(RadioTap)
+        for field in filter(lambda el: el not in ignoredFields, radioTapElt.fields):
+            name = field
+            value = getattr(radioTapElt, field)
+
+            # Handle flags
+            if type(value) == scapy.fields.FlagValue:
+                dataDict.update(self.__extractFlags(pkt.FCfield))
+                continue
+            
+            # Field already exists
+            if name in dataDict:
+                dataDict[name] = dataDict[name] + value
+            else:
+                dataDict[name] = value
+        
+        return dataDict
+        
+
+    def __getDot11Fields(self, pkt):
         """
             This function iterates through all the received Dot11 elements in the
             packet. 
@@ -296,29 +407,32 @@ class CaptureEngine():
             For more information on the IDs of the elements and their meaning, see 
             https://www.oreilly.com/library/view/80211-wireless-networks/0596100523/ch04.html
         """
-        # Iterate through all the Dot11 elements
         dataDict = {}
 
         # Check if the packet is a valid Dot11 packet
         if not pkt.haslayer(Dot11):
+            print(f"{bcolors.WARNING}Packet has no Dot11 layer.{bcolors.ENDC}")
             return None
 
         # Get the Dot11 parameters of the packet
         # MAC addresses
-        dataDict["receiverAddr"] = pkt.addr1
-        dataDict["senderAddr"] = pkt.addr2
+        dataDict["receiver_addr"] = pkt.addr1
+        dataDict["sender_addr"] = pkt.addr2
         dataDict["bssid"] = pkt.addr3
+        
+        # Mac address randomisation
+        dataDict["random_mac"] = self.__isMacRadom(dataDict["sender_addr"])
 
         # Device Manufacturer name
-        dataDict["manufacturer"] = self.getManufacturerName(dataDict["senderAddr"])
+        dataDict["manufacturer"] = self.__getManufacturerName(dataDict["sender_addr"])
 
         # Sequence Number
         SC = pkt.SC
         hexSC = '0' * (4 - len(hex(SC)[2:])) + hex(SC)[2:]
-        dataDict["seqNum"] = int(hexSC[:-1],16)
+        dataDict["seq_num"] = int(hexSC[:-1],16)
 
         # Dot11 Flags
-        dataDict.update(self.extractFlags(pkt.FCfield))
+        dataDict.update(self.__extractFlags(pkt.FCfield))
 
         # Dot11 Elements
         dot11elt = pkt.getlayer(Dot11Elt)
@@ -343,20 +457,21 @@ class CaptureEngine():
 
                 # Handle Element flags
                 if type(value) == scapy.fields.FlagValue:
-                    dataDict.update(self.extractFlags(pkt.FCfield))
+                    dataDict.update(self.__extractFlags(pkt.FCfield))
                     continue
                 
                 # Field already exists
                 if name in dataDict:
-                    dataDict[name] = list(dataDict[name]) + value
+                    dataDict[name] = dataDict[name] + value
                 else:
                     dataDict[name] = value
 
             # Get next dot11 element
             dot11elt = dot11elt.payload.getlayer(Dot11Elt)
+        
         return dataDict
 
-    def extractFlags(self, flags):
+    def __extractFlags(self, flags):
         """
             Gets a scapy flag type and returns a dictionnary of flag values by flag names.
 
@@ -371,7 +486,7 @@ class CaptureEngine():
         
         return flagsDict
 
-    def getManufacturerName(self, addr):
+    def __getManufacturerName(self, addr):
         """ 
             Returns the name of the organisation associated to the given MAC.
             If no organisation is listed for that MAC, returns None
@@ -383,7 +498,18 @@ class CaptureEngine():
             manuf = None
         return manuf
 
-def _buildParser():
+class bcolors:
+    HEADER = '\033[95m'
+    OKBLUE = '\033[94m'
+    OKCYAN = '\033[96m'
+    OKGREEN = '\033[92m'
+    WARNING = '\033[93m'
+    FAIL = '\033[91m'
+    ENDC = '\033[0m'
+    BOLD = '\033[1m'
+    UNDERLINE = '\033[4m'
+
+def __buildParser():
     parser = argparse.ArgumentParser()
 
     # Set options
@@ -403,14 +529,16 @@ def main():
     """
         This is where the magic happens.
     """
+    print(f"{bcolors.HEADER}=== Probe Request Analyser V0.1 ==={bcolors.ENDC}")
     # Build the argument parser
-    parser = _buildParser()
+    parser = __buildParser()
     
     # Parse arguments
     options = parser.parse_args()
     
      # Create capture engine
     engine = CaptureEngine(options.interface, filePath=options.filePath, log=options.log)
+
     engine.startCapture()
     
     # Capture until we catch a packet
@@ -419,8 +547,12 @@ def main():
     
     engine.stopCapture()
     pkts = engine.capturedPackets
-    dct = engine.extractPacketData(pkts)
-    pd.DataFrame(dct).to_csv("outuput.csv")
+    
+    # Extract relevant data fields
+    df = engine.extractPacketData(pkts)
+    df.to_csv("df.csv")
+    
+    # TODO: Add the data to a pandas dataFrame
     engine.exitGracefully()
 
 if __name__ == "__main__":
@@ -428,10 +560,13 @@ if __name__ == "__main__":
         exit("Run as root.")
     
     # Keyboard Interrupt handleing
+    main()
     try:
         main()
-    except KeyboardInterrupt:
+    except Exception as e:
+        print(f"{bcolors.FAIL}ERROR - {e}: Cleaning up...{bcolors.ENDC}")
         try:
+            engine = CaptureEngine.getInstance()
             engine.exitGracefully()
-        except NameError:
+        except:
             os._exit(0)
