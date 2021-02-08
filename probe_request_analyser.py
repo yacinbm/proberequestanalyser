@@ -48,7 +48,6 @@
             * Have an input parameter that allows for saving the stucture
         - Filter the received request with a variable RSSI value
             * Have an input parameter that changes the threshold
-        - Analyze the probe requests (sample function)
 """
 import os # File management
 from shutil import which # Python implementation of which
@@ -61,6 +60,18 @@ import argparse # Argument parsing
 
 # Executing external processes
 import subprocess
+
+# Terminal colors
+class bcolors:
+    HEADER = '\033[95m'
+    OKBLUE = '\033[94m'
+    OKCYAN = '\033[96m'
+    OKGREEN = '\033[92m'
+    WARNING = '\033[93m'
+    FAIL = '\033[91m'
+    ENDC = '\033[0m'
+    BOLD = '\033[1m'
+    UNDERLINE = '\033[4m'
 
 # External modules
 try:
@@ -319,33 +330,30 @@ class CaptureEngine:
             
             Returns a pandas dataFrame containing all the extracted data.
         """
-        
-        df = pd.DataFrame()
-        for pkt in pkts:
+        listDict = []
+        for i, pkt in enumerate(pkts):
             # Radio Tap Fields extraction
             try:
                 radioTapDict = self.__getRadioTapFields(pkt)
-                radioTapDf = pd.DataFrame([radioTapDict], columns=sorted(radioTapDict.keys()))
             except Exception as e:
                 print(f"Warning - {bcolors.WARNING}{e}: Error getting radio tap data, skipping packet.{bcolors.ENDC}")
+                continue
             
             # Dot11 Elements extraction
             try:
                 dot11Dict = self.__getDot11Fields(pkt)
-                dot11Df = pd.DataFrame([dot11Dict], columns=sorted(dot11Dict.keys()))
             except Exception as e:
                 print(f"Warning - {bcolors.WARNING}{e}: Error getting dot11 data, skipping packet.{bcolors.ENDC}")
+                continue
             
-            # Output dataframe
-            df2 = pd.concat([radioTapDf, dot11Df], axis=1)
-            df = pd.concat([df, df2], ignore_index=True, sort=True)
+            listDict.append({**radioTapDict, **dot11Dict})
 
-        return df
+        # Output dataframe
+        return pd.DataFrame.from_dict(listDict).astype(str)
 
     def __isMacRadom(self, addr):
         """
             Checks if Mac address is random. 
-            Addr is a 
             Return True if random, else returns False.
         """
         byteList = ['2', '3', '6', '7',  'a', 'b',  'e', 'f']
@@ -375,6 +383,10 @@ class CaptureEngine:
         for field in filter(lambda el: el not in ignoredFields, radioTapElt.fields):
             name = field
             value = getattr(radioTapElt, field)
+
+            # Check if value is overflow two big to be an int, if it is, reprensent as str
+            if type(value) == int and value > sys.maxsize:
+                value = str(value)
 
             # Handle flags
             if type(value) == scapy.fields.FlagValue:
@@ -445,6 +457,11 @@ class CaptureEngine:
             for field in filter(lambda el: el not in ignoredFields, dot11elt.fields):
                 name = field
                 value = getattr(dot11elt, field)
+
+                # Check if value is overflow two big to be an int, if it is, reprensent as str
+                if type(value) == int and value > sys.maxsize:
+                    value = str(value)
+
                 # Elements not decoded by Scapy contain an "info" field. 
                 # Add the element ID to differentiate them.
                 if field == "info":
@@ -498,22 +515,13 @@ class CaptureEngine:
             manuf = None
         return manuf
 
-class bcolors:
-    HEADER = '\033[95m'
-    OKBLUE = '\033[94m'
-    OKCYAN = '\033[96m'
-    OKGREEN = '\033[92m'
-    WARNING = '\033[93m'
-    FAIL = '\033[91m'
-    ENDC = '\033[0m'
-    BOLD = '\033[1m'
-    UNDERLINE = '\033[4m'
-
 def __buildParser():
     parser = argparse.ArgumentParser()
 
     # Set options
     optionGroup = parser.add_argument_group("OPTIONS")
+    optionGroup.add_argument("--numPackets", help="Number of packets to be captured. ",
+                                type=int, action="store", dest="numPackets", default=10)
     optionGroup.add_argument("--interface", help="Interface to do capture on. "
                                 "If no interface is selected, the first compatible one will be used.",
                                 type=str, action="store", dest="interface", default=None)
@@ -542,17 +550,20 @@ def main():
     engine.startCapture()
     
     # Capture until we catch a packet
-    while len(engine.capturedPackets) < 10:
+    while len(engine.capturedPackets) < options.numPackets:
         continue
     
     engine.stopCapture()
+    print(f"Finished capturing {options.numPackets} packets.")
+
     pkts = engine.capturedPackets
     
     # Extract relevant data fields
     df = engine.extractPacketData(pkts)
-    df.to_csv("df.csv")
+    if options.log :
+        print("Saving extracted data to csv...")
+        df.to_csv(f"dataFrame_{self.__interface}_{dateTime}.csv")
     
-    # TODO: Add the data to a pandas dataFrame
     engine.exitGracefully()
 
 if __name__ == "__main__":
@@ -560,7 +571,6 @@ if __name__ == "__main__":
         exit("Run as root.")
     
     # Keyboard Interrupt handleing
-    main()
     try:
         main()
     except Exception as e:
