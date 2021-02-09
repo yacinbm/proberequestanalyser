@@ -6,6 +6,28 @@
     TODO: 
         Create a packet analyser class to seperature packet capture and interpretation.
 """
+import os
+import sys
+from datetime import datetime
+# Regular expression for terminal output parsing
+import re
+# Executing external processes
+import subprocess
+# Colored prints
+from cliColors import bcolors
+
+# External modules
+try:
+    from scapy.all import wrpcap, rdpcap, AsyncSniffer, RadioTap, scapy, Dot11, Dot11Elt
+except ImportError:
+    exit(f"{bcolors.FAIL}Scapy is required for this application, please install with"
+            f"\n\tpip install scapy{bcolors.ENDC}")
+
+try:
+    import pandas as pd
+except ImportError:
+    exit(f"{bcolors.FAIL}Pandas is required for this application, please install with"
+            f"\n\tpip install pandas{bcolors.ENDC}")
 
 class CaptureEngine:
     """
@@ -80,9 +102,6 @@ class CaptureEngine:
             print(f"{bcolors.WARNING}The CaptureEngine class is a sigleton, please use getInstance() to use the previous instance of the class.{bcolors.ENDC}")
     
     def __setup(self):
-        if not checkDependencies():
-            exit()
-        
         if self.__offline:
             return
 

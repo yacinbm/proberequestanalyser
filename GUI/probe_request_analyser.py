@@ -1,5 +1,5 @@
 """
-    Probe Request Analyser - CLI
+    Probe Request Analyser - GUI
 
     Author: Yacin Belmihoub-Martel @yacinbm (yacin.belmihoubmartel@gmail.com)
 
@@ -8,8 +8,6 @@
     This application aims to estimate the distance of a user based on the strength 
     of the received probe requests coming from a device. It uses scaby to sniff
     live traffic from the air and analyses the packets directly.
-
-    For help on how to use the app, run with -h or --help.
 
     =========================
     = QCA6174A INSTALLATION =
@@ -48,24 +46,17 @@
 """
 import os # File management
 from shutil import which # Python implementation of which
-from datetime import datetime
+import datetime
 
 # Terminal interface
 import sys
-import argparse # Argument parsing
+
+# GUI library
+import tkinter
 
 # Capture Engine Module
 sys.path.append("../")
 from captureEngine import CaptureEngine
-
-# Colored prints
-from cliColors import bcolors
-
-def programInstalled(programName):
-    """
-        Return true iff the program is installed on the machine.
-    """
-    return which(programName)
 
 def checkDependencies():
         """
@@ -79,58 +70,6 @@ def checkDependencies():
                        f"Please install aircrack-ng using:\n\tsudo apt-get install aicrack-ng{bcolors.ENDC}")
                 return False
         return True
-
-def __buildParser():
-    parser = argparse.ArgumentParser()
-
-    # Set options
-    optionGroup = parser.add_argument_group("OPTIONS")
-    optionGroup.add_argument("--numPackets", help="Number of packets to be captured. ",
-                                type=int, action="store", dest="numPackets", default=10)
-    optionGroup.add_argument("--interface", help="Interface to do capture on. "
-                                "If no interface is selected, the first compatible one will be used.",
-                                type=str, action="store", dest="interface", default=None)
-    optionGroup.add_argument("--filePath", help="File path to the pcap file to be analysed. "
-                                "If no path is specified, will do capture over the air.",
-                                type=str, action="store", dest="filePath", default=False)
-    optionGroup.add_argument("--log", help="Enables logging to .pcap file.",
-                                action="store_true", dest="log", default=False)
-
-    return parser
-
-def main():
-    """
-        This is where the magic happens.
-    """
-    print(f"{bcolors.HEADER}=== Probe Request Analyser V0.1 ==={bcolors.ENDC}")
-    # Build the argument parser
-    parser = __buildParser()
-    
-    # Parse arguments
-    options = parser.parse_args()
-    
-     # Create capture engine
-    engine = CaptureEngine(options.interface, filePath=options.filePath, log=options.log)
-
-    engine.startCapture()
-    
-    # Capture until we catch a packet
-    while len(engine.capturedPackets) < options.numPackets:
-        continue
-    
-    engine.stopCapture()
-    print(f"Finished capturing {options.numPackets} packets.")
-
-    pkts = engine.capturedPackets
-    
-    # Extract relevant data fields
-    df = engine.extractPacketData(pkts)
-    if options.log :
-        print("Saving extracted data to csv...")
-        dateTime = datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
-        df.to_csv(f"dataFrame_{options.interface}_{dateTime}.csv")
-    
-    engine.exitGracefully()
 
 if __name__ == "__main__":
     if os.getuid() != 0:
@@ -147,3 +86,8 @@ if __name__ == "__main__":
             engine.exitGracefully()
         except:
             os._exit(0)
+
+def main():
+    """
+        This is where the magic happens!
+    """
