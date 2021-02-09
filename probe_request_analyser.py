@@ -43,9 +43,6 @@
     Now reboot your system to make sure the wlan interface is still showing with ifconfig.
 
     TODO:
-    Capture probe requests using airodump-ng
-        - Create a structure to organize the requests per client (dict or data frame)
-            * Have an input parameter that allows for saving the stucture
         - Filter the received request with a variable RSSI value
             * Have an input parameter that changes the threshold
 """
@@ -78,19 +75,19 @@ try:
     from scapy.all import *
 except ImportError:
     exit(f"{bcolors.FAIL}Scapy is required for this application, please install with"
-            f"\npip install scapy{bcolors.ENDC}")
+            f"\n\tpip install scapy{bcolors.ENDC}")
 
 try:
     from netaddr import *
 except ImportError:
     exit(f"{bcolors.FAIL}Netaddr is required for this application, please install with"
-            f"\npip install netaddr{bcolors.ENDC}")
+            f"\n\tpip install netaddr{bcolors.ENDC}")
 
 try:
     import pandas as pd
 except ImportError:
     exit(f"{bcolors.FAIL}Pandas is required for this application, please install with"
-            f"\npip install pandas{bcolors.ENDC}")
+            f"\n\tpip install pandas{bcolors.ENDC}")
 
 def programInstalled(programName):
     """
@@ -101,15 +98,20 @@ def programInstalled(programName):
 def setMonitorMode(interface):
     """
         Set the interface to monitor Mode using airmon-ng.
+
+        Returns the name of the new interface.
     """
     print(f"Setting {interface} in Monitor mode...")
-    try:
-        output = subprocess.call(["sudo", "airmon-ng", "start", interface], stdout=open(os.devnull, 'wb'))
-        if output != 0:
-            raise RuntimeError(f'{bcolors.FAIL}airmon-ng start {interface} failed!{bcolors.ENDC}')
-    except RuntimeError as e:
-        print(e)
-        exit()
+    output = subprocess.call(["sudo", "airmon-ng", "start", interface], stdout=open(os.devnull, 'wb'))
+    
+    # New interface name
+    newInterface = interface + "mon"
+    
+    if not checkMonitorMode(newInterface) :
+        raise RuntimeError(f'Failed to set {interface} in monitor mode! '
+                            f'Check if {interface} supports monitor mode with:\n\tiwconfig')
+    
+    return newInterface
 
 def disableMonitorMode(interface):
     """
@@ -143,7 +145,7 @@ def checkMonitorMode(interface):
     """
         Returns true iff the given interface is in Monitor mode.
     """
-    output = subprocess.check_output(["iwconfig"]).decode("utf-8").split("\n\n")
+    output = subprocess.check_output(["iwconfig"],stderr=open(os.devnull, 'wb')).decode("utf-8").split("\n\n")
     for iface in output:
         if interface in iface and "Mode:Monitor" in iface:
             return True
@@ -158,7 +160,7 @@ def checkDependencies():
         for dep in dependencies:
             if programInstalled(dep) is None:
                 print(f"{bcolors.FAIL}Probe Request Capture requires {dep} installed. "
-                       f"Please install aircrack-ng using \nsudo apt-get install aicrack-ng{bcolors.ENDC}")
+                       f"Please install aircrack-ng using:\n\tsudo apt-get install aicrack-ng{bcolors.ENDC}")
                 return False
         return True
 
@@ -244,7 +246,7 @@ class CaptureEngine:
         # Setup the interface
         if self.__interface is not None:
             if not checkMonitorMode(self.__interface):
-                setMonitorMode(self.__interface)
+                self.__interface = setMonitorMode(self.__interface)
         
         # No given interface, select the first compatible one
         else:
@@ -260,9 +262,7 @@ class CaptureEngine:
             # No available monitor interface, configure the first compatible one
             else:
                 interface = list(interfaces.keys())[0]
-                setMonitorMode(interface)
-                # Monitor interface name
-                interface+="mon" 
+                interface = setMonitorMode(interface)
             
             # Save the interface name
             self.__interface = interface
@@ -562,7 +562,8 @@ def main():
     df = engine.extractPacketData(pkts)
     if options.log :
         print("Saving extracted data to csv...")
-        df.to_csv(f"dataFrame_{self.__interface}_{dateTime}.csv")
+        dateTime = datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
+        df.to_csv(f"dataFrame_{options.interface}_{dateTime}.csv")
     
     engine.exitGracefully()
 
@@ -574,7 +575,7 @@ if __name__ == "__main__":
     try:
         main()
     except Exception as e:
-        print(f"{bcolors.FAIL}ERROR - {e}: Cleaning up...{bcolors.ENDC}")
+        print(f"{bcolors.FAIL}ERROR - {e}\nCleaning up...{bcolors.ENDC}")
         try:
             engine = CaptureEngine.getInstance()
             engine.exitGracefully()
