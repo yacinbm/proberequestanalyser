@@ -58,6 +58,9 @@ import argparse # Argument parsing
 # Executing external processes
 import subprocess
 
+# Regular expression for terminal output parsing
+import re
+
 # Terminal colors
 class bcolors:
     HEADER = '\033[95m'
@@ -94,62 +97,6 @@ def programInstalled(programName):
         Return true iff the program is installed on the machine.
     """
     return which(programName)
-
-def setMonitorMode(interface):
-    """
-        Set the interface to monitor Mode using airmon-ng.
-
-        Returns the name of the new interface.
-    """
-    print(f"Setting {interface} in Monitor mode...")
-    output = subprocess.call(["sudo", "airmon-ng", "start", interface], stdout=open(os.devnull, 'wb'))
-    
-    # New interface name
-    newInterface = interface + "mon"
-    
-    if not checkMonitorMode(newInterface) :
-        raise RuntimeError(f'Failed to set {interface} in monitor mode! '
-                            f'Check if {interface} supports monitor mode with:\n\tiwconfig')
-    
-    return newInterface
-
-def disableMonitorMode(interface):
-    """
-        Set the current 
-    """
-    print(f"Setting {interface} back to Managed mode...")
-    try:
-        output = subprocess.call(["sudo", "airmon-ng", "stop", interface], stdout=open(os.devnull, 'wb'))
-        if output != 0:
-            raise RuntimeError(f'{bcolors.FAIL}airmon-ng stop {interface} failed!{bcolors.ENDC}')
-    except RuntimeError as e:
-        exit(e)
-
-def getCompatibleInterfaces():
-    """
-        Returns a dict of all compatible interfaces and their current operating mode.
-    """
-    output = subprocess.check_output(["iwconfig"],stderr=open(os.devnull, 'wb')).decode("utf-8").split("\n\n")
-    output = list(filter(None, output)) # Remove empty strings
-    if not output:
-        exit(f"{bcolors.FAIL}No compatible interface found. Make sure your wifi card supports Monitor mode.{bcolors.ENDC}")
-    
-    interfaceDict = {}
-    for interface in output:
-        name = interface.split(" ")[0]
-        mode = interface.split("Mode:")[1].split(" ")[0]
-        interfaceDict[name] = mode
-    return interfaceDict
-
-def checkMonitorMode(interface):
-    """
-        Returns true iff the given interface is in Monitor mode.
-    """
-    output = subprocess.check_output(["iwconfig"],stderr=open(os.devnull, 'wb')).decode("utf-8").split("\n\n")
-    for iface in output:
-        if interface in iface and "Mode:Monitor" in iface:
-            return True
-    return False
 
 def checkDependencies():
         """
@@ -245,24 +192,25 @@ class CaptureEngine:
 
         # Setup the interface
         if self.__interface is not None:
-            if not checkMonitorMode(self.__interface):
-                self.__interface = setMonitorMode(self.__interface)
+            if not self.__checkMonitorMode(self.__interface):
+                self.__interface = self.__setMonitorMode(self.__interface)
         
         # No given interface, select the first compatible one
         else:
-            interfaces = getCompatibleInterfaces()
+            interfaces = self.__getCompatibleInterfaces()
             if not interfaces:
                 exit(f"{bcolors.FAIL}No compatible interface found. Make sure your wifi card is compatible with Monitor Mode.{bcolors.ENDC}")
 
             # Check for monitor mode interfaces
             monitorInterfaces = [name for (name, mode) in interfaces.items() if mode == "Monitor"]
             if monitorInterfaces:
+                # Select the first compatible one
                 interface = monitorInterfaces[0]
             
             # No available monitor interface, configure the first compatible one
             else:
                 interface = list(interfaces.keys())[0]
-                interface = setMonitorMode(interface)
+                interface = self.__setMonitorMode(interface)
             
             # Save the interface name
             self.__interface = interface
@@ -276,13 +224,67 @@ class CaptureEngine:
             self.__sniffer = AsyncSniffer(iface=self.__interface, prn=self.__captureCallback, filter=bpf)
         else:
             pass
+    
+    def __setMonitorMode(self, interface):
+        """
+            Set the interface to monitor Mode using airmon-ng.
+            This method changes the name of the __interface parameter
+        """
+        print(f"Setting {interface} in Monitor mode...")
+        output = subprocess.call(["sudo", "airmon-ng", "start", interface], stdout=open(os.devnull, 'wb'))
+        
+        # New interface name
+        newInterface = interface + "mon"
+        
+        if not self.__checkMonitorMode(newInterface) :
+            raise RuntimeError(f'Failed to set {interface} in monitor mode! '
+                                f'Check if {interface} supports monitor mode with:\n\tiwconfig')
+        
+        return newInterface
+
+    def __disableMonitorMode(self):
+        """
+            Set the current 
+        """
+        interface = self.__interface
+        print(f"Setting {interface} back to Managed mode...")
+        output = subprocess.call(["sudo", "airmon-ng", "stop", interface], stdout=open(os.devnull, 'wb'))
+        if output != 0:
+            raise RuntimeError(f'airmon-ng stop {interface} failed!')
+
+    def __getCompatibleInterfaces(self):
+        """
+            Returns a dict of all compatible interfaces and their current operating mode.
+        """
+        output = subprocess.check_output(["iwconfig"],stderr=open(os.devnull, 'wb')).decode("utf-8").split("\n\n")
+        output = list(filter(None, output)) # Remove empty strings
+        if not output:
+            exit(f"{bcolors.FAIL}No compatible interface found. Make sure your wifi card supports Monitor mode.{bcolors.ENDC}")
+        
+        interfaceDict = {}
+        for interface in output:
+            name = interface.split(" ")[0]
+            mode = interface.split("Mode:")[1].split(" ")[0]
+            interfaceDict[name] = mode
+        return interfaceDict
+
+    def __checkMonitorMode(self, interface):
+        """
+            Returns true iff the given interface is in Monitor mode.
+        """
+        output = subprocess.check_output(["iwconfig"],stderr=open(os.devnull, 'wb')).decode("utf-8").split("\n\n")
+        for iface in output:
+            if re.search(fr'\b{interface}\b', iface) and "Mode:Monitor" in iface:
+                return True
+        return False
+
 
     def exitGracefully(self):
         """
             Reverts the wireless adapter to managed mode and does a cleanup.
         """
         if not self.__offline:
-            disableMonitorMode(self.__interface)
+            self.__disableMonitorMode()
     
     def __captureCallback(self, pkt):
         """
@@ -331,7 +333,7 @@ class CaptureEngine:
             Returns a pandas dataFrame containing all the extracted data.
         """
         listDict = []
-        for i, pkt in enumerate(pkts):
+        for pkt in pkts:
             # Radio Tap Fields extraction
             try:
                 radioTapDict = self.__getRadioTapFields(pkt)
