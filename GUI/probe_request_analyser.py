@@ -58,6 +58,12 @@ import tkinter
 sys.path.append("../")
 from captureEngine import CaptureEngine
 
+def programInstalled(programName):
+    """
+        Return true iff the program is installed on the machine.
+    """
+    return which(programName)
+
 def checkDependencies():
         """
             Check if all wifi monitoring dependencies are installed.
