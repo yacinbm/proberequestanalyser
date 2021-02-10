@@ -13,7 +13,16 @@ Inspired by wifite (https://github.com/derv82/wifite)
 ## Intro
 This python app captures probe requests from a compatible wlan monitor interface. It sets up the interface on its own, captures the requests and saves them to the disk (if enabled). It can also read back .pcap files to extract relevant fields and save them in a csv format.
 
-For help on how to use the app, run with -h or --help.
+## CLI
+For help on how to use the command line interface, run with -h or --help.
+
+## GUI
+To run the GUI, simply execute it with:
+```bash
+	sudo python3 gui.py
+```
+
+You can change the RSSI threshold of the captured packets, the active interface, start and stop a capture, see a summary of the captured data and save the results in a .csv and .pcap. 
 
 ## QCA6174A INSTALLATION
 
