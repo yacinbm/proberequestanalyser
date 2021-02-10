@@ -1,6 +1,6 @@
-.vscode
+.vscode/
 raw_probes_analyser.py
 *.pcap
 *.csv
-__pychache__
-log
+**/__pycache__/
+log/
