@@ -31,7 +31,6 @@ When using this program with the QCA6174A, you need to install a custom firmware
 You can use the firmware found at https://github.com/kvalo/ath10k-firmware/raw/master/QCA6174/hw3.0/4.4.1.c3/firmware-6.bin_WLAN.RM.4.4.1.c3-00075.
 
 Download the firmware file and rename it to firmware-2.bin. Now to install the firmware:
-(Note, the card used in the buspas module is hw3.0)
 
 * Back up the original firmware for your machine:
 ```bash
@@ -42,6 +41,7 @@ sudo cp -r hw[hw_version] hw[hw_version]_ori
 ```bash
  sudo rm /hw[hw_version]/firmware-*.bin
 ```
+(Note, the card used in the buspas module is hw3.0)
 * Copy the new firmware file:
 ```bash
 sudo cp /path/to/fw_file/[your firmware] ./firmware-2.bin
