@@ -119,8 +119,10 @@ class App:
         
     # Event handlers
     def close(self):
-        self.engine.exitGracefully()
-        self.master.quit()
+        try:
+            self.engine.exitGracefully()
+        finally:
+            self.master.quit()
     
     def save(self):
         # Save pcap
