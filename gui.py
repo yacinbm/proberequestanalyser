@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-    Probe Request Analyser - CLI
+    Probe Request Analyser - GUI
 
     Author: Yacin Belmihoub-Martel @yacinbm (yacin.belmihoubmartel@gmail.com)
 
@@ -18,11 +18,12 @@ from tkinter.filedialog import askopenfilename
 from datetime import datetime
 from source.captureEngine import CaptureEngine
 from source.cliColors import bcolors
-
+import source.sqlManager as sql
 class App:
     def __init__(self, master):
         # Capture engine
         self.engine = CaptureEngine()
+        self.__previousNumCapPkt = 0 # Used to update packet list
 
         # Captured Packet Summary list
         self.packetSummary = []
@@ -69,7 +70,7 @@ class App:
             command=self.browse)
         self.__readFileButton = Button(self.__settingsFrame,
             text="Read file",
-            command=self.readCapFile,
+            command=self.readFile,
             state=DISABLED)
         self.__closeButton = Button(self.__bottomFrame, 
             text="Close", 
@@ -78,6 +79,8 @@ class App:
             text="Save", 
             command=self.save,
             state=DISABLED)
+        self.__readDb = Button(self.__settingsFrame, 
+            text="Read database")
 
         # Packet table 
         COLUMNS = [
@@ -136,18 +139,30 @@ class App:
         dirName = os.path.dirname(__file__)
         filePath = os.path.join(dirName, f"./log/{fileName}")
         df.to_csv(f"{filePath}")
-        print(f"Saved dataframe to log/{fileName}")
+        print(f"Saved Captured data dataframe to log/{fileName}")
+
+        # Insert the new captures to the database
+        if ".db" in filePath:
+            conn = sql.createConnection(self.filePath)
+        else:
+            conn = sql.createConnection("captures.db")
+        sql.saveToDb(conn, "captures", df)
+        print("Updated the database.")
+        
+        # Toggle button
         self.__saveButton.config(state=DISABLED)
 
     def startCapture(self):
         # Capture engine config
         log = self.log.get()
         iface = self.interface.get()
+        rssiThreshold = self.rssiThreshold.get()
         
         try:
             # Update config
             self.engine.setInterface(iface)
             self.engine.setLogging(log)
+            self.engine.setRssiThreshold(rssiThreshold)
             # Start capture
             self.engine.startCapture()
         except Exception as e:
@@ -180,11 +195,19 @@ class App:
         if self.filePath:
             self.__readFileButton.config(state=NORMAL)
 
-    def readCapFile(self):
+    def readFile(self):
         # Clear packet list
         self.packetSummary = []
-        # Set file path and read file
-        self.engine.readFile(self.filePath)
+
+        if ".cap" in self.filePath:
+            # Add the contents of the cap file to the capture engine.
+            self.engine.readFile(self.filePath)
+        
+        elif ".db" in self.filePath:
+            # Display the saved summaries in the database
+            conn = sql.createConnection(self.filePath)
+            self.updateSummaries(sql.fetchAll(conn, "captures"))
+        
         # Disable read button after read
         self.__readFileButton.config(state=DISABLED)
         # Enable save
@@ -197,6 +220,8 @@ class App:
                                           title = "Select a Capture File", 
                                           filetypes = (("Capture files", 
                                                         ".pcap .cap"), 
+                                                        ("SQLite 3 database files",
+                                                        ".db"),
                                                        ("all files", 
                                                         "*.*")))
 
@@ -204,7 +229,24 @@ class App:
             self.filePath = filename
             self.__readFileButton.config(state=NORMAL)
 
-    def updatePacketList(self):
+    def updateSummaries(self, pktsInfo):
+        """
+            Updates the displayed packet summaries. Make sure these are the 
+            same, or at least are in the same order as the names displayed in
+            the treeview.
+        """
+        SUMMARY_FIELDS = [
+            "sender_addr",
+            "random_mac",
+            "dBm_AntSignal",
+            "ssid",
+            "seq_num"
+        ]
+        for pktInfo in pktsInfo:
+            summary = tuple([pktInfo[field] for field in SUMMARY_FIELDS])
+            self.treeView.insert("", 'end', values=summary)
+
+    def checkNewCap(self):
         """
             Updates the list of packets to be displayed.
         """
@@ -212,24 +254,15 @@ class App:
             # Sanity check
             return	
 
-        pktListSize = len(self.packetSummary)
-        if pktListSize != len(self.engine.capturedPackets):
-            missingPkts = self.engine.capturedPackets[pktListSize:-1]
+        # Check if packets are yet to be displayed
+        if self.__previousNumCapPkt < len(self.engine.capturedPackets):
+            missingPkts = self.engine.capturedPackets[self.__previousNumCapPkt:-1]
             missingPktsInfo = self.engine.getDataFrame(missingPkts).to_dict('records')
 
-            for pktInfo in missingPktsInfo:
-                rssi = pktInfo["dBm_AntSignal"]
-                if int(rssi) < self.rssiThreshold.get():
-                    continue
-                mac = pktInfo["sender_addr"]
-                randomMac = pktInfo["random_mac"]
-                ssid = pktInfo["ssid"] if pktInfo["ssid"] else None
-                seqNum = pktInfo["seq_num"]
-                summary = (mac, randomMac, rssi, ssid, seqNum)
-                self.packetSummary.append(summary)
-                self.treeView.insert("", 'end', values=summary)
+            # Get pkt summary info
+            self.updateSummaries(missingPktsInfo)
         
-        self.master.after(1000, self.updatePacketList)
+        self.master.after(1000, self.checkNewCap)
 
 def programInstalled(programName):
     """
@@ -254,8 +287,10 @@ def main():
     root = Tk()
     app = App(root)
 
-    root.after(1000, app.updatePacketList)
+    root.after(1000, app.checkNewCap)
     root.mainloop()
+
+    sql.fetchAll(sql.createConnection("captures.db"), "captures")
 
 if __name__ == "__main__":
     if os.getuid() != 0:

@@ -71,8 +71,8 @@ def saveToDb(connection, table, df):
 
 def fetchAll(connection, table):
     """
-        Returns all the rows from the given table.
+        Returns a list of dictionnaries for every row of the db.
     """
     c = connection.cursor()
     c.execute(f"""SELECT * FROM {table}""")
-    return c.fetchall()
+    return [{c.description[i][0]:val for i, val in enumerate(entry)} for entry in c.fetchall()]
