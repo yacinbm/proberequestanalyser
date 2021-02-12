@@ -12,6 +12,10 @@
 
     For help on how to use the app, run with -h or --help.
 
+    TODO: 
+        * Identify most relevant fields
+        * Cleanup corrupted data (ex. SSID)
+    
     =========================
     = QCA6174A INSTALLATION =
     =========================
@@ -62,6 +66,12 @@ from source.captureEngine import CaptureEngine
 # Colored prints
 from source.cliColors import bcolors
 
+# SQLite3
+import source.sqlManager as sql
+# Database Constants
+DB_NAME = "captures.db"
+TABLE_NAME = "captures"
+
 def programInstalled(programName):
     """
         Return true iff the program is installed on the machine.
@@ -93,6 +103,11 @@ def __buildParser():
                                 type=str, action="store", dest="interface", default=None)
     optionGroup.add_argument("--log", help="Enables logging to .pcap file.",
                                 action="store_true", dest="log", default=False)
+    optionGroup.add_argument("--noCap", help="Doesn't capture anything. Useful to print db.",
+                                action="store_true", dest="noCap", default=False)
+    optionGroup.add_argument("--printDb", help="Prints the contents of the database to the console. "
+                                "You can output the results to a text file by echoing to a text file.",
+                                action="store_true", dest="printDb", default=False)
 
     return parser
 
@@ -107,31 +122,51 @@ def main():
     # Parse arguments
     options = parser.parse_args()
     
-     # Create capture engine
-    engine = CaptureEngine(options.interface, log=options.log)
+    # Create capture engine
+    if not options.noCap:
+        engine = CaptureEngine(options.interface, log=options.log)
 
-    engine.startCapture()
-    
-    # Capture until we catch a packet
-    while len(engine.capturedPackets) < options.numPackets:
-        continue
-    
-    engine.stopCapture()
-    print(f"Finished capturing {options.numPackets} packets.")
+        engine.startCapture()
+        
+        # Capture until we catch a packet
+        while len(engine.capturedPackets) < options.numPackets:
+            continue
+        
+        engine.stopCapture()
+        print(f"Finished capturing {options.numPackets} packets.")
 
-    pkts = engine.capturedPackets
+        pkts = engine.capturedPackets
+        
+        # Extract relevant data fields
+        df = engine.getDataFrame(pkts)
     
-    # Extract relevant data fields
-    df = engine.getDataFrame(pkts)
-    if options.log :
-        print("Saving extracted data to csv...")
-        dateTime = datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
-        # Create output folder
-        Path("./log").mkdir(parents=True, exist_ok=True)
-        # Save dataframe
-        df.to_csv(f"./log/dataFrame_{options.interface}_{dateTime}.csv")
+        if options.log :
+            # Create output folder
+            Path("./log").mkdir(parents=True, exist_ok=True)
+            print("Saving extracted data to csv...")
+            dateTime = datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
+            
+            # Save dataframe
+            df.to_csv(f"./log/dataFrame_{options.interface}_{dateTime}.csv")
+            
+            # Save to SQLite
+            print("Saving extracted data to local sql db...")
+            # Get connection
+            conn = sql.createConnection(DB_NAME)
+            # Save to database
+            sql.saveToDb(conn,TABLE_NAME,df)
+            # Close connection
+            conn.close()
+
+        print("Cleaning up...")
+        engine.exitGracefully()
     
-    engine.exitGracefully()
+    # Print the contents of the DB
+    if options.printDb:
+        conn = sql.createConnection(DB_NAME)
+        print(sql.getColumnsName())
+        for row in sql.fetchAll(conn, TABLE_NAME):
+            print(row)
 
 if __name__ == "__main__":
     if os.getuid() != 0:
