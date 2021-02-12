@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-    Probe Request Analyser - CLI
+    Probe Request Analyser - CLI with SQL
 
     Author: Yacin Belmihoub-Martel @yacinbm (yacin.belmihoubmartel@gmail.com)
 
@@ -9,6 +9,12 @@
     This application aims to estimate the distance of a user based on the strength 
     of the received probe requests coming from a device. It uses scaby to sniff
     live traffic from the air and analyses the packets directly.
+
+    When launched with the --log option, the CLI will generate two log files,
+    a .pcap and a .csv file to conserve the captured data. It will also create or
+    update a local capture.db database. You can then read back that database with 
+    the --printDb option, and pipe it to a file with ex.:
+        sudo ./cli --printDb --noCap > database.txt
 
     For help on how to use the app, run with -h or --help.
 

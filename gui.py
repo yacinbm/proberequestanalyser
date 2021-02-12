@@ -7,6 +7,10 @@
     This is a sample application of the captureEngine. It captures probe requests
     from the air and displays them in a GUI. It can filter the captured packets 
     depending on their RSSI value and also read back .pcap files for display.
+
+    Upon clicking Save, a .pcap file and a .csv file are created to save the content
+    and the data base is updated. If no database was specified in the browse option 
+    menu, then it will be crated on the drive.
 """
 import os
 import sys
