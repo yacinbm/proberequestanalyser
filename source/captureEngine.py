@@ -49,12 +49,15 @@ class CaptureEngine:
         Class arguments:
             interface       -   [String] Interface to do the capture on. Not required if filePath was
                                 specified, as the engine will start in offline mode
-            filePath        -   [String] Path to the capture file to be read for analysis. Specifying
-                                a file path will start the engine in offline mode, which will prevent 
-                                user to do capture over the air.
             log             -   [Bool] Specifies if the traffic captured over the air will be saved
                                 to the disk in pcap format. The saved data is the raw data captured
                                 from Scapy. 
+            bpFilter        -   [String] Berkley Packet Filter to determine what packets are to be 
+                                captured. For more info, see https://biot.com/capstats/bpf.html.
+                                By default, the engine only capture probe requests.
+            rssiThreshold   -   [Int] RSSI threshold filter in dBm. If the received RSSI is lower than
+                                the threshold, the packet will be ignored. The default value is minus
+                                infinity, so all the packets are kept.
 
         Class attributes:
             capturedPackets -   [List] List of scapy packets captured by the engine.
@@ -74,9 +77,9 @@ class CaptureEngine:
             getDataFrame(pkts)  -   Takes a single packet, or a list of packets, and extracts the 
                                     relenvant Dot11 and Radio tap informations from it. a pandas
                                     data frame with all relevant data.
+            setRssiThreshold(rssiThreshold) -   Sets the RSSI threshold.
             exitGracefully()    -   Reverts the interface back into managed mode.
     """
-    # TODO: Add function to change the class attributes, like interface, log and offlineMode.
     def getInstance():
         """
             Return the capture engine instance.
@@ -87,7 +90,7 @@ class CaptureEngine:
             return CaptureEngine.__instance
     
     __instance = None
-    def __init__(self, interface=None, log=False):
+    def __init__(self, interface=None, log=False, bpFilter=None, rssiThreshold=float("-inf")):
         if not CaptureEngine.__instance:
             # Save singleton instance
             CaptureEngine.__instance = self
@@ -97,6 +100,8 @@ class CaptureEngine:
             self.__interface = interface
             self.__log = log
             self.__running = False
+            self.__filter = "wlan type mgt subtype probe-req" if bpFilter is None else bpFilter
+            self.__rssiThreshold = rssiThreshold
 
         else:
             print(f"{bcolors.WARNING}The CaptureEngine class is a sigleton, please use getInstance() to use the previous instance of the class.{bcolors.ENDC}")
@@ -133,12 +138,7 @@ class CaptureEngine:
             self.__interface = interface
         
         # Setup the sniffer
-
-        # Filter received packets to receive only probe req.
-        # For more info on the Berkley Packet Filter syntax, 
-        # see https://biot.com/capstats/bpf.html
-        bpf = "wlan type mgt subtype probe-req"
-        self.__sniffer = AsyncSniffer(iface=self.__interface, prn=self.__captureCallback, filter=bpf)
+        self.__sniffer = AsyncSniffer(iface=self.__interface, prn=self.__captureCallback, filter=self.__filter)
         return 
     
     def __setMonitorMode(self, interface):
@@ -200,8 +200,14 @@ class CaptureEngine:
 
             Append the received packet to the capturedPackets list.
         """
-        self.capturedPackets.append(pkt)
-    
+        try:
+            radioTapElt = pkt.getlayer(RadioTap)
+            rssi = getattr(radioTapElt, "dBm_AntSignal")
+            if rssi >= self.__rssiThreshold:
+                self.capturedPackets.append(pkt)
+        except:
+            pass
+        
     def setLogging(self, enableLog):
         """
             Enables or disables logging according to value
@@ -233,6 +239,15 @@ class CaptureEngine:
         # Update interface
         self.__interface = interface
     
+    def setRssiThreshold(self, rssiThreshold):
+        # Check if engine running
+        if self.__running:
+            print(f"{bcolors.WARNING}Please stop the engine before changing parameters.{bcolors.ENDC}")
+            return
+
+        # Update interface
+        self.__rssiThreshold = rssiThreshold
+
     def readFile(self, filePath):
         # Check input param
         if type(filePath) != str:
