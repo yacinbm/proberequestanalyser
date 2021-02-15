@@ -203,7 +203,7 @@ class App:
         # Clear packet list
         self.packetSummary = []
 
-        if ".cap" in self.filePath:
+        if ".cap" in self.filePath or ".pcap" in self.filePath:
             # Add the contents of the cap file to the capture engine.
             self.engine.readFile(self.filePath)
         
@@ -211,6 +211,10 @@ class App:
             # Display the saved summaries in the database
             conn = sql.createConnection(self.filePath)
             self.updateSummaries(sql.fetchAll(conn, "captures"))
+
+        else :
+            print(f"{bcolors.WARNING}WARNING - File type not supported!{bcolors.ENDC}")
+            self.filePath = None
         
         # Disable read button after read
         self.__readFileButton.config(state=DISABLED)
@@ -265,6 +269,9 @@ class App:
 
             # Get pkt summary info
             self.updateSummaries(missingPktsInfo)
+            
+            # Update number of packets
+            self.__previousNumCapPkt = len(self.engine.capturedPackets)
         
         self.master.after(1000, self.checkNewCap)
 
