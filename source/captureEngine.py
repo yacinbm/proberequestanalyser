@@ -17,7 +17,10 @@ import subprocess
 # Colored prints
 from source.cliColors import bcolors
 
-from netaddr import EUI
+# TODO: 
+# * Create a class for instances instead of having just a string
+#   and manage the setup from within that class.
+
 
 # External modules
 try:
@@ -31,6 +34,12 @@ try:
 except ImportError:
     exit(f"{bcolors.FAIL}Pandas is required for this application, please install with"
             f"\n\tpip install pandas{bcolors.ENDC}")
+
+try:
+    from netaddr import EUI
+except ImportError:
+    exit(f"{bcolors.FAIL}Netaddr is required for this application, please install with"
+            f"\n\tpip install netaddr{bcolors.ENDC}")
 
 class CaptureEngine:
     """
