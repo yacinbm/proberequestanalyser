@@ -4,7 +4,7 @@ It revolves around a central CaptureEngine component which is charged with setti
 probe requests using the Scapy python library. It is also used to extract relevant Dot11 and RadioTap fields which are relevant to 
 analyze the probe requests and their emittor. 
 
-This repository contrains two demo applications indicating how to use the CaptureEngine component. The first one is a command line interface,
+This repository contains two demo applications indicating how to use the CaptureEngine component. The first one is a command line interface,
 and the second one is a Graphical User Interface with more advanced functionnality.
 
 # Getting Started
@@ -77,6 +77,7 @@ Then, execute the script with:
 ```
 sudo ./cli.py
 ```
+For more details on how to use the application and its various options, please run the script with -h or --help. 
 ###GUI:
 To run the application, make the Python script executable with:
 ```
