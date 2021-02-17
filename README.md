@@ -1,7 +1,7 @@
 # Introduction 
 This application aims to capture and extract relevant features of probe requests using a monitor mode compatilble Wi-Fi card.
 It revolves around a central CaptureEngine component which is charged with setting up the wireless interface and capturing 
-probe requests using the Scapy python library. It is also use to extract relevant Dot11 and RadioTap fields which are relevant to 
+probe requests using the Scapy python library. It is also used to extract relevant Dot11 and RadioTap fields which are relevant to 
 analyze the probe requests and their emittor. 
 
 This repository contrains two demo applications indicating how to use the CaptureEngine component. The first one is a command line interface,
