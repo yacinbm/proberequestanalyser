@@ -28,6 +28,9 @@ class App:
         # Capture engine
         self.engine = CaptureEngine()
         self.__previousNumCapPkt = 0 # Used to update packet list
+        
+        # Device Tracking variables
+        self.__macAddresses = []
 
         # Captured Packet Summary list
         self.packetSummary = []
@@ -46,6 +49,8 @@ class App:
         self.rssiThreshold.set(-100)
         self.log = BooleanVar(master)
         self.log.set(False)
+        self.numUniqueDevices = IntVar() # Used to identify surrounding devices
+        self.numUniqueDevices.set(f"Unique Devices: {0}")
         
         # Frames 
         self.__settingsFrame = Frame(master)
@@ -54,6 +59,7 @@ class App:
         
         # Labels
         self.__rssiLabel = Label(self.__settingsFrame, text="RSSI Threshold:")
+        self.__numUniqueDevicesLabel = Label(self.__settingsFrame, textvariable=self.numUniqueDevices)
 
         # Entries       
         self.__rssiEntry = Entry(self.__settingsFrame, textvariable=self.rssiThreshold)
@@ -116,6 +122,7 @@ class App:
         # Row 2
         self.__browseButton.grid(row=2, column=0, sticky=W)
         self.__readFileButton.grid(row=2, column=1, sticky=W)
+        self.__numUniqueDevicesLabel.grid(row=2, column=3, sticky=W)
 
         # Packet Frame
         self.__packetFrame.grid()
@@ -251,8 +258,15 @@ class App:
             "seq_num"
         ]
         for pktInfo in pktsInfo:
-            summary = tuple([pktInfo[field] for field in SUMMARY_FIELDS])
-            self.treeView.insert("", 'end', values=summary)
+            try:
+                summary = tuple([pktInfo[field] for field in SUMMARY_FIELDS])
+                self.__macAddresses.append(summary[0])
+                numUniqueDevices = len(set(self.__macAddresses))
+                self.numUniqueDevices.set(f"Unique Devices: {numUniqueDevices}")
+                self.treeView.insert("", 'end', values=summary)
+            except:
+                print(f"{bcolors.WARNING} WARNING - Couldn't fetch the previous packet summary, skipping packet.")
+                continue
 
     def checkNewCap(self):
         """
@@ -300,8 +314,6 @@ def main():
 
     root.after(1000, app.checkNewCap)
     root.mainloop()
-
-    sql.fetchAll(sql.createConnection("captures.db"), "captures")
 
 if __name__ == "__main__":
     if os.getuid() != 0:

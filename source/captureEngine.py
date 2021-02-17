@@ -431,6 +431,9 @@ class CaptureEngine:
         hexSC = '0' * (4 - len(hex(SC)[2:])) + hex(SC)[2:]
         dataDict["seq_num"] = int(hexSC[:-1],16)
 
+        # Default SSID value
+        dataDict["ssid"] = b""
+
         # Dot11 Flags
         dataDict.update(self.__extractFlags(pkt.FCfield))
 

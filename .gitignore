@@ -5,3 +5,5 @@ raw_probes_analyser.py
 **/__pycache__/
 log/
 *.db
+captures.db_paired
+captures.db_unpaired
