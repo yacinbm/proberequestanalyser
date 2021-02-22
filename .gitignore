@@ -1,9 +1,17 @@
-.vscode/
-raw_probes_analyser.py
-*.pcap
-*.csv
+# Python garbage
 **/__pycache__/
+
+# VSCode config
+.vscode/
+
+# Log files
 log/
 *.db
 captures.db_paired
 captures.db_unpaired
+*.pcap
+*.csv
+
+# Doxygen output files
+html/
+latex/
