@@ -45,22 +45,22 @@ class CaptureEngine:
 
         use:
         @code{.py}
-            captureEngine = CaptureEngine(interface="wan0", log=True)
+            captureEngine = CaptureEngine(interface="wan0", logPath="./log")
             captureEngine.startCapture()
             [...do stuff here...]
             captureEngine.stopCapture()
             pkts = catureEngine.capturedPackets
-            data = captureEngine.extractData(pkts)
+            data = captureEngine.buildDataframe(pkts)
             captureEngine.exitGracefully()
         @endcode
 
-        @param interface    [Optional](str) Interface to do the capture on. If no interface is specified, the engine will detect the first
+        @param [Optional]interface    (str) Interface to do the capture on. If no interface is specified, the engine will detect the first
                             compatible one and use it.
-        @param logPath      [Optional](str) Log directory where the raw scapy captures will be saved upon stoping the capture. If no directory
+        @param [Optional]logPath      (str) Log directory where the raw scapy captures will be saved upon stoping the capture. If no directory
                             is specified, the raw scapy captures will not automatically be saved to the disk.
-        @param bpFilter     [Optional](str) Berkley Packet Filter to determine what packets are to be captured. For more info, 
+        @param [Optional]bpFilter     (str) Berkley Packet Filter to determine what packets are to be captured. For more info, 
                             see https://biot.com/capstats/bpf.html. By default, the engine only capture probe requests.
-        @param rssiThreshold    [Optional](str) Received Signal Strength Indicator (RSSI) capture threshold. If the captured packet has a 
+        @param [Optional]rssiThreshold    (str) Received Signal Strength Indicator (RSSI) capture threshold. If the captured packet has a 
                                 lower RSSI than the one specified, it will be ignored. If no rssiThreshold is given, all packets will
                                 be captured, regardless of their RSSI value.
     """
@@ -288,7 +288,7 @@ class CaptureEngine:
         # revert back interface
         self.exitGracefully()
 
-    def getDataFrame(self,pkts):
+    def buildDataframe(self,pkts):
         """! Builds a pandas dataframe from the given scapy packets list. 
         The data fields are Dot11 (see 802.11 standard for more details),
         and RadioTap fields (see https://scapy.readthedocs.io/en/latest/api/scapy.layers.dot11.html#scapy.layers.dot11.RadioTap

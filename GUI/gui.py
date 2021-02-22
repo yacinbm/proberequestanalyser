@@ -13,6 +13,8 @@
     and the data base is updated. If no database was specified in the browse option 
     menu, then it will be crated on the drive.
 """
+VERSION_STRING = "V0.1" #!< Version String
+
 # Native modules
 import os
 import sys
@@ -26,12 +28,16 @@ from tkinter.ttk import Treeview
 from tkinter.filedialog import askopenfilename
 
 # Import top level directory
-sys.path.insert(0,'../../')
+sys.path.insert(0,'../')
 
 # Import engine components
-from proberequestanalyzer.source.captureEngine import CaptureEngine
-from proberequestanalyzer.source.cliColors import bcolors
-import proberequestanalyzer.source.sqlManager as sql
+from source.captureEngine import CaptureEngine
+from source.cliColors import bcolors
+import source.sqlUtil as sql
+
+# Database Constants
+DB_NAME = "../log/captures.db" #!< Name of the local SQLite database
+TABLE_NAME = "captures" #!< Name of the SQLite database table
 
 class App:
     """! Graphical User Interface application using Tkinter
@@ -172,11 +178,13 @@ class App:
         print(f"Saved Captured data dataframe to log/{fileName}")
 
         # Insert the new captures to the database
+        
         if ".db" in filePath:
-            conn = sql.createConnection(self.__filePath)
+            dbName = self.__filePath
         else:
-            conn = sql.createConnection("captures.db")
-        sql.saveToDb(conn, "captures", df)
+            dbName = DB_NAME
+        conn = sql.connect(dbName)
+        sql.saveDfToDb(conn, TABLE_NAME, df)
         print("Updated the database.")
         
         # Toggle button
@@ -241,7 +249,7 @@ class App:
         
         elif ".db" in self.__filePath:
             # Display the saved summaries in the database
-            conn = sql.createConnection(self.__filePath)
+            conn = sql.connect(self.__filePath)
             self.updateSummaries(sql.fetchAll(conn, "captures"))
 
         else :

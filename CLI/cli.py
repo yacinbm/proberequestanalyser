@@ -35,19 +35,19 @@ import sys
 import argparse # Argument parsing
 
 # Import top level directory
-sys.path.insert(0,'../../')
+sys.path.insert(0,'../')
 
 # Capture Engine Module
-from proberequestanalyzer.source.captureEngine import CaptureEngine
+from source.captureEngine import CaptureEngine
 
 # Colored prints
-from proberequestanalyzer.source.cliColors import bcolors
+from source.cliColors import bcolors
 
 # SQLite3
-import proberequestanalyzer.source.sqlManager as sql
+import source.sqlUtil as sql
 
 # Database Constants
-DB_NAME = "captures.db" #!< Name of the local SQLite database
+DB_NAME = "../log/captures.db" #!< Name of the local SQLite database
 TABLE_NAME = "captures" #!< Name of the SQLite database table
 
 def programInstalled(programName):
@@ -93,7 +93,7 @@ def main():
     """! 
     Entry point of the script.
     """
-    print(f"{bcolors.HEADER}{bcolors.BOLD}=== Probe Request analyzer V{VERSION_STRING} ==={bcolors.ENDC}")
+    print(f"{bcolors.HEADER}{bcolors.BOLD}=== Probe Request analyzer {VERSION_STRING} ==={bcolors.ENDC}")
     # Build the argument parser
     parser = __buildParser()
     
@@ -116,7 +116,7 @@ def main():
         pkts = engine.capturedPackets
         
         # Extract relevant data fields
-        df = engine.getDataFrame(pkts)
+        df = engine.buildDataframe(pkts)
     
         if options.logPath :
             # Create output folder
@@ -130,9 +130,13 @@ def main():
             # Save to SQLite
             print("Saving extracted data to local sql db...")
             # Get connection
-            conn = sql.createConnection(DB_NAME)
+            conn = sql.connect(os.path.abspath(DB_NAME))
+            if not conn:
+                # Sanity check
+                return
+            
             # Save to database
-            sql.saveToDb(conn,TABLE_NAME,df)
+            sql.saveDfToDb(conn,TABLE_NAME,df)
             # Close connection
             conn.close()
 
