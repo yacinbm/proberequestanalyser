@@ -5,7 +5,7 @@
     @author Yacin Belmihoub-Martel @yacinbm (yacin.belmihoubmartel@gmail.com)
 
     TODO:
-        *   Create a packet analyser class to seperature packet capture and interpretation.
+        *   Create a packet analyzer class to seperature packet capture and interpretation.
         *   Create a class for instances instead of having just a string
             and manage the setup from within that class.
 """

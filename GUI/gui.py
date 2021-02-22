@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """
     @file gui.py
-    @brief Probe Request Analyser - GUI
+    @brief Probe Request Analyzer - GUI
 
     @author Yacin Belmihoub-Martel @yacinbm (yacin.belmihoubmartel@gmail.com)
 
@@ -29,9 +29,9 @@ from tkinter.filedialog import askopenfilename
 sys.path.insert(0,'../../')
 
 # Import engine components
-from proberequestanalyser.source.captureEngine import CaptureEngine
-from proberequestanalyser.source.cliColors import bcolors
-import proberequestanalyser.source.sqlManager as sql
+from proberequestanalyzer.source.captureEngine import CaptureEngine
+from proberequestanalyzer.source.cliColors import bcolors
+import proberequestanalyzer.source.sqlManager as sql
 
 class App:
     def __init__(self, master):
@@ -47,7 +47,7 @@ class App:
 
         ## GUI ##
         self.master = master
-        master.title("Probe Request Analyser")
+        master.title("Probe Request analyzer")
         
         # Variables
         INTERFACES = self.engine.getCompatibleInterfaces()

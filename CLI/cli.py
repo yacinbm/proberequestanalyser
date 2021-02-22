@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """
     @file cli.py
-    @brief Probe Request Analyser - CLI
+    @brief Probe Request analyzer - CLI
 
     @author Yacin Belmihoub-Martel @yacinbm (yacin.belmihoubmartel@gmail.com)
 
@@ -9,7 +9,7 @@
     
     This application aims to estimate the distance of a user based on the strength 
     of the received probe requests coming from a device. It uses scaby to sniff
-    live traffic from the air and analyses the packets directly.
+    live traffic from the air and analyzes the packets directly.
 
     When launched with the --log option, the CLI will generate two log files,
     a .pcap and a .csv file to conserve the captured data. It will also create or
@@ -68,13 +68,13 @@ import argparse # Argument parsing
 sys.path.insert(0,'../../')
 
 # Capture Engine Module
-from proberequestanalyser.source.captureEngine import CaptureEngine
+from proberequestanalyzer.source.captureEngine import CaptureEngine
 
 # Colored prints
-from proberequestanalyser.source.cliColors import bcolors
+from proberequestanalyzer.source.cliColors import bcolors
 
 # SQLite3
-import proberequestanalyser.source.sqlManager as sql
+import proberequestanalyzer.source.sqlManager as sql
 # Database Constants
 DB_NAME = "captures.db"
 TABLE_NAME = "captures"
@@ -121,7 +121,7 @@ def __buildParser():
 def main():
     """! This is where the magic happens.
     """
-    print(f"{bcolors.HEADER}{bcolors.BOLD}=== Probe Request Analyser V{VERSION_STRING} ==={bcolors.ENDC}")
+    print(f"{bcolors.HEADER}{bcolors.BOLD}=== Probe Request analyzer V{VERSION_STRING} ==={bcolors.ENDC}")
     # Build the argument parser
     parser = __buildParser()
     
