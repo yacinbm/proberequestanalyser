@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""
+"""!
     @file cli.py
     @brief Probe Request analyzer - CLI
 
@@ -15,45 +15,15 @@
     a .pcap and a .csv file to conserve the captured data. It will also create or
     update a local capture.db database. You can then read back that database with 
     the --printDb option, and pipe it to a file with ex.:
-        sudo ./cli --printDb --noCap > database.txt
+    @code sudo ./cli --printDb --noCap > database.txt
+    @endcode
 
     For help on how to use the app, run with -h or --help.
-    
-    =========================
-    = QCA6174A INSTALLATION =
-    =========================
-    When using this program with the QCA6174A, you need to install a custom firmware
-    that supports rawmode and cryptmode. You can use the firmware found at
-    https://github.com/kvalo/ath10k-firmware/raw/master/QCA6174/hw3.0/4.4.1.c3/firmware-6.bin_WLAN.RM.4.4.1.c3-00075.
-    Download the firmware file and rename it to firmware-2.bin. Now to install the
-    firmware:
-    (Note, the card used in the buspas module is hw3.0)
-        * Back up the original firmware for your machine:
-            cd /lib/firmware/ath10k/QCA6174
-            sudo cp -r hw[hw_version] hw[hw_version]_ori
-        * Remove the old firmware files:
-            sudo rm /hw[hw_version]/firmware-*.bin
-        * Copy the new firmware file:
-            sudo cp /path/to/fw_file/[your firmware] ./firmware-2.bin
-    
-    Now in order to use a more recent firmware, you need to use a recent driver. For this,
-    we use backports. Download backport v5.3.6-1 from
-    https://cdn.kernel.org/pub/linux/kernel/projects/backports/stable/ and extract it. In
-    the backports folder, execute the following commands to build the ath10k driver:
-        make defconfig-ath10k
-        make -j4
-        sudo make install
-    Finally, create a driver configuration file under /etc/modprobe.d/ath10k_core.conf
-    with the following lines:
-        options ath10k_core rawmode=1
-        options ath10k_core cryptmode=1
-
-    Now reboot your system to make sure the wlan interface is still showing with ifconfig.
 
     TODO:
         * Identify most relevant fields
 """
-VERSION_STRING = "0.1"
+VERSION_STRING = "V0.1" #!< CLI Version String
 
 import os # File management
 from shutil import which # Python implementation of which
@@ -75,9 +45,10 @@ from proberequestanalyzer.source.cliColors import bcolors
 
 # SQLite3
 import proberequestanalyzer.source.sqlManager as sql
+
 # Database Constants
-DB_NAME = "captures.db"
-TABLE_NAME = "captures"
+DB_NAME = "captures.db" #!< Name of the local SQLite database
+TABLE_NAME = "captures" #!< Name of the SQLite database table
 
 def programInstalled(programName):
     """! Returns true iff the program is installed on the machine.
@@ -86,8 +57,8 @@ def programInstalled(programName):
     return which(programName)
 
 def checkDependencies():
-        """! Check if all wifi monitoring dependencies are installed.
-        Returns true iff all dependencies are installed, else returns false
+        """! Check if all shell dependencies are installed on the current machine.
+        @return True iff all dependencies are installed, else returns false
         """
         dependencies = ["aircrack-ng", "airodump-ng"]
         for dep in dependencies:
@@ -119,7 +90,8 @@ def __buildParser():
     return parser
 
 def main():
-    """! This is where the magic happens.
+    """! 
+    Entry point of the script.
     """
     print(f"{bcolors.HEADER}{bcolors.BOLD}=== Probe Request analyzer V{VERSION_STRING} ==={bcolors.ENDC}")
     # Build the argument parser

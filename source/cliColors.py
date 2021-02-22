@@ -1,4 +1,4 @@
-"""
+"""!
     @file cliColors
     @brief Colored prints for CLI.
 

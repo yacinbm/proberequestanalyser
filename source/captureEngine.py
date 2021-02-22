@@ -1,4 +1,4 @@
-"""
+"""!
     @file captureEngine.py
     @brief Capture Engine module.
 
@@ -44,6 +44,7 @@ class CaptureEngine:
         can exist at any time. This is so we can revert back the interface in case of a problem.
 
         use:
+        @code{.py}
             captureEngine = CaptureEngine(interface="wan0", log=True)
             captureEngine.startCapture()
             [...do stuff here...]
@@ -51,6 +52,7 @@ class CaptureEngine:
             pkts = catureEngine.capturedPackets
             data = captureEngine.extractData(pkts)
             captureEngine.exitGracefully()
+        @endcode
 
         @param interface    [Optional](str) Interface to do the capture on. If no interface is specified, the engine will detect the first
                             compatible one and use it.
@@ -72,6 +74,9 @@ class CaptureEngine:
     
     __instance = None
     def __init__(self, interface=None, logPath=None, bpFilter=None, rssiThreshold=float("-inf")):
+        """!
+        Initialise the singleton object.
+        """
         if not CaptureEngine.__instance:
             # Save singleton instance
             CaptureEngine.__instance = self

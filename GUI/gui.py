@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""
+"""!
     @file gui.py
     @brief Probe Request Analyzer - GUI
 
@@ -34,9 +34,12 @@ from proberequestanalyzer.source.cliColors import bcolors
 import proberequestanalyzer.source.sqlManager as sql
 
 class App:
+    """! Graphical User Interface application using Tkinter
+    @param master   (Tk tkinter object) Master Tkinter object. 
+    """
     def __init__(self, master):
         # Capture engine
-        self.engine = CaptureEngine()
+        self.__engine = CaptureEngine()
         self.__previousNumCapPkt = 0 # Used to update packet list
         
         # Device Tracking variables
@@ -46,21 +49,21 @@ class App:
         self.packetSummary = []
 
         ## GUI ##
-        self.master = master
+        self.__master = master
         master.title("Probe Request analyzer")
         
         # Variables
-        INTERFACES = self.engine.getCompatibleInterfaces()
-        self.interface = StringVar(master)
+        INTERFACES = self.__engine.getCompatibleInterfaces()
+        self.__interface = StringVar(master)
         firstInterface = list(INTERFACES.keys())[0]
-        self.interface.set(firstInterface) # First compatible interface
-        self.filePath = None
-        self.rssiThreshold = IntVar(master)
-        self.rssiThreshold.set(-100)
-        self.log = BooleanVar(master)
-        self.log.set(False)
-        self.numUniqueDevices = IntVar() # Used to identify surrounding devices
-        self.numUniqueDevices.set(f"Unique Devices: {0}")
+        self.__interface.set(firstInterface) # First compatible interface
+        self.__filePath = None
+        self.__rssiThreshold = IntVar(master)
+        self.__rssiThreshold.set(-100)
+        self.__log = BooleanVar(master)
+        self.__log.set(False)
+        self.__numUniqueDevices = IntVar() # Used to identify surrounding devices
+        self.__numUniqueDevices.set(f"Unique Devices: {0}")
         
         # Frames 
         self.__settingsFrame = Frame(master)
@@ -69,13 +72,13 @@ class App:
         
         # Labels
         self.__rssiLabel = Label(self.__settingsFrame, text="RSSI Threshold:")
-        self.__numUniqueDevicesLabel = Label(self.__settingsFrame, textvariable=self.numUniqueDevices)
+        self.__numUniqueDevicesLabel = Label(self.__settingsFrame, textvariable=self.__numUniqueDevices)
 
         # Entries       
-        self.__rssiEntry = Entry(self.__settingsFrame, textvariable=self.rssiThreshold)
+        self.__rssiEntry = Entry(self.__settingsFrame, textvariable=self.__rssiThreshold)
 
         # Dropdown menues
-        self.__interfaceMenu = OptionMenu(self.__settingsFrame, self.interface, *INTERFACES)
+        self.__interfaceMenu = OptionMenu(self.__settingsFrame, self.__interface, *INTERFACES)
 
         # Buttons
         self.__startButton = Button(self.__settingsFrame, 
@@ -110,14 +113,14 @@ class App:
             "SSID",
             "Sequence Number"
         ]
-        self.treeView = Treeview(self.__packetFrame)
-        self.treeView["columns"] = COLUMNS
-        self.treeView["show"] = "headings"
+        self.__treeView = Treeview(self.__packetFrame)
+        self.__treeView["columns"] = COLUMNS
+        self.__treeView["show"] = "headings"
         # Prepare columns
         for col in COLUMNS:
-            self.treeView.heading(col, text=col)
+            self.__treeView.heading(col, text=col)
         # Display table
-        self.treeView.grid()
+        self.__treeView.grid()
 
         # Setup the window layout
         # Setting frame
@@ -144,19 +147,25 @@ class App:
         
     # Event handlers
     def close(self):
+        """!
+        Close the GUI application.
+        """
         try:
-            self.engine.exitGracefully()
+            self.__engine.exitGracefully()
         finally:
-            self.master.quit()
+            self.__master.quit()
     
     def save(self):
+        """!
+        Save the capture data.
+        """
         # Save pcap
-        self.engine.saveCapFile()
+        self.__engine.saveCapFile()
         
         # Save dataframe
-        df = self.engine.getDataFrame(self.engine.capturedPackets)
+        df = self.__engine.getDataFrame(self.__engine.capturedPackets)
         dateTime = datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
-        fileName = f"dataFrame_{self.interface.get()}_{dateTime}.csv"
+        fileName = f"dataFrame_{self.__interface.get()}_{dateTime}.csv"
         dirName = os.path.dirname(__file__)
         filePath = os.path.join(dirName, f"./log/{fileName}")
         df.to_csv(f"{filePath}")
@@ -164,7 +173,7 @@ class App:
 
         # Insert the new captures to the database
         if ".db" in filePath:
-            conn = sql.createConnection(self.filePath)
+            conn = sql.createConnection(self.__filePath)
         else:
             conn = sql.createConnection("captures.db")
         sql.saveToDb(conn, "captures", df)
@@ -174,18 +183,21 @@ class App:
         self.__saveButton.config(state=DISABLED)
 
     def startCapture(self):
+        """!
+        Start a probe request capture on the selected interface.
+        """
         # Capture engine config
-        log = self.log.get()
-        iface = self.interface.get()
-        rssiThreshold = self.rssiThreshold.get()
+        log = self.__log.get()
+        iface = self.__interface.get()
+        rssiThreshold = self.__rssiThreshold.get()
         
         try:
             # Update config
-            self.engine.setInterface(iface)
-            self.engine.setLogging(log)
-            self.engine.setRssiThreshold(rssiThreshold)
+            self.__engine.setInterface(iface)
+            self.__engine.setLogging(log)
+            self.__engine.setRssiThreshold(rssiThreshold)
             # Start capture
-            self.engine.startCapture()
+            self.__engine.startCapture()
         except Exception as e:
             exit(f"{bcolors.FAIL}Failed to start capture: {e}{bcolors.ENDC}")
         
@@ -196,42 +208,45 @@ class App:
         self.__saveButton.config(state=DISABLED)
         
     def stopCapture(self):
+        """!
+        Stop the capture.
         """
-            Stops capture and deletes the old capture engine. Also reverts the interface back to managed mode.
-        """
-        if not self.engine:
+        if not self.__engine:
             # Sanity check
             print(f"{bcolors.FAIL}Engine not degined!{bcolors.ENDC}")
             return
 
         # Stop Capture
-        self.engine.stopCapture()
-        numPackets = len(self.engine.capturedPackets)
+        self.__engine.stopCapture()
+        numPackets = len(self.__engine.capturedPackets)
         print(f"Captured {numPackets} packets.")
         
         # Toggle buttons
         self.__startButton.config(state=NORMAL)
         self.__stopButton.config(state=DISABLED)
         self.__saveButton.config(state=NORMAL)
-        if self.filePath:
+        if self.__filePath:
             self.__readFileButton.config(state=NORMAL)
 
     def readFile(self):
+        """!
+        Read the file selected from the browse() function explorer window.
+        """
         # Clear packet list
         self.packetSummary = []
 
-        if ".cap" in self.filePath or ".pcap" in self.filePath:
+        if ".cap" in self.__filePath or ".pcap" in self.__filePath:
             # Add the contents of the cap file to the capture engine.
-            self.engine.readCapFile(self.filePath)
+            self.__engine.readCapFile(self.__filePath)
         
-        elif ".db" in self.filePath:
+        elif ".db" in self.__filePath:
             # Display the saved summaries in the database
-            conn = sql.createConnection(self.filePath)
+            conn = sql.createConnection(self.__filePath)
             self.updateSummaries(sql.fetchAll(conn, "captures"))
 
         else :
             print(f"{bcolors.WARNING}File type not supported!{bcolors.ENDC}")
-            self.filePath = None
+            self.__filePath = None
         
         # Disable read button after read
         self.__readFileButton.config(state=DISABLED)
@@ -239,6 +254,9 @@ class App:
         self.__saveButton.config(state=NORMAL)
     
     def browse(self):
+        """!
+        Open the file explorer window to select a file to be read. The file can be a .db, .cap or .pcap.
+        """
         # Disable read button while browsing
         self.__readFileButton.config(state=DISABLED)
         filename = askopenfilename(initialdir = "~/", 
@@ -251,14 +269,12 @@ class App:
                                                         "*.*")))
 
         if filename:
-            self.filePath = filename
+            self.__filePath = filename
             self.__readFileButton.config(state=NORMAL)
 
     def updateSummaries(self, pktsInfo):
-        """
-            Updates the displayed packet summaries. Make sure these are the 
-            same, or at least are in the same order as the names displayed in
-            the treeview.
+        """!
+        Updates the displayed packet summaries table.
         """
         SUMMARY_FIELDS = [
             "sender_addr",
@@ -273,43 +289,45 @@ class App:
                 summary = tuple([pktInfo[field] for field in SUMMARY_FIELDS])
                 self.__macAddresses.add(summary[0])
                 numUniqueDevices = len(self.__macAddresses)
-                self.numUniqueDevices.set(f"Unique Devices: {numUniqueDevices}")
-                self.treeView.insert("", 'end', values=summary)
+                self.__numUniqueDevices.set(f"Unique Devices: {numUniqueDevices}")
+                self.__treeView.insert("", 'end', values=summary)
             except:
                 print(f"{bcolors.WARNING} WARNING - Couldn't fetch the previous packet summary, skipping packet.")
                 continue
 
     def checkNewCap(self):
+        """! 
+        Checks if new packets have been captured. If there is, call updateSummaries(). This method is called every second.
         """
-            Updates the list of packets to be displayed.
-        """
-        if not self.engine:
+        if not self.__engine:
             # Sanity check
             return	
 
         # Check if packets are yet to be displayed
-        if self.__previousNumCapPkt < len(self.engine.capturedPackets):
-            missingPkts = self.engine.capturedPackets[self.__previousNumCapPkt:-1]
-            missingPktsInfo = self.engine.getDataFrame(missingPkts).to_dict('records')
+        if self.__previousNumCapPkt < len(self.__engine.capturedPackets):
+            missingPkts = self.__engine.capturedPackets[self.__previousNumCapPkt:-1]
+            missingPktsInfo = self.__engine.getDataFrame(missingPkts).to_dict('records')
 
             # Get pkt summary info
             self.updateSummaries(missingPktsInfo)
             
             # Update number of packets
-            self.__previousNumCapPkt = len(self.engine.capturedPackets)
+            self.__previousNumCapPkt = len(self.__engine.capturedPackets)
         
-        self.master.after(1000, self.checkNewCap)
+        self.__master.after(1000, self.checkNewCap)
 
 def programInstalled(programName):
-    """
-        Return true iff the program is installed on the machine.
+    """!
+    Checks if the program is installed on the current machine.
+    @param programName (str) Name of the program.
+    @return True iff the program is installed on the machine. 
     """
     return which(programName)
 
 def checkDependencies():
-        """
-            Check if all wifi monitoring dependencies are installed.
-            Returns true iff all dependencies are installed, else returns false
+        """!
+        Check if all required shell dependencies are installed.
+        @return True iff all dependencies are installed.
         """
         dependencies = ["aircrack-ng", "airodump-ng"]
         for dep in dependencies:
@@ -320,6 +338,9 @@ def checkDependencies():
         return True
 
 def main():
+    """!
+    Start the GUI application window.
+    """
     root = Tk()
     app = App(root)
 

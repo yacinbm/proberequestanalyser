@@ -1,4 +1,4 @@
-"""
+"""!
     @file sqlUtil.py
     @brief SQLite manager for the extracted packet data Database.
 
