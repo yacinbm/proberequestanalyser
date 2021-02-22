@@ -1,8 +1,9 @@
 #!/usr/bin/env python3
 """
-    Probe Request Analyser - GUI
+    @file gui.py
+    @brief Probe Request Analyser - GUI
 
-    Author: Yacin Belmihoub-Martel @yacinbm (yacin.belmihoubmartel@gmail.com)
+    @author Yacin Belmihoub-Martel @yacinbm (yacin.belmihoubmartel@gmail.com)
 
     This is a sample application of the captureEngine. It captures probe requests
     from the air and displays them in a GUI. It can filter the captured packets 
@@ -12,17 +13,26 @@
     and the data base is updated. If no database was specified in the browse option 
     menu, then it will be crated on the drive.
 """
+# Native modules
 import os
 import sys
+from hashlib import md5
+from datetime import datetime
 from shutil import which
 
+# GUI Utility
 from tkinter import Tk, Entry, Label, Button, Frame, LEFT, RIGHT, W, E, NORMAL, DISABLED, StringVar, Checkbutton, BooleanVar, OptionMenu, IntVar
 from tkinter.ttk import Treeview
 from tkinter.filedialog import askopenfilename
-from datetime import datetime
-from source.captureEngine import CaptureEngine
-from source.cliColors import bcolors
-import source.sqlManager as sql
+
+# Import top level directory
+sys.path.insert(0,'../../')
+
+# Import engine components
+from proberequestanalyser.source.captureEngine import CaptureEngine
+from proberequestanalyser.source.cliColors import bcolors
+import proberequestanalyser.source.sqlManager as sql
+
 class App:
     def __init__(self, master):
         # Capture engine
@@ -30,7 +40,7 @@ class App:
         self.__previousNumCapPkt = 0 # Used to update packet list
         
         # Device Tracking variables
-        self.__macAddresses = []
+        self.__macAddresses = set()
 
         # Captured Packet Summary list
         self.packetSummary = []
@@ -94,7 +104,7 @@ class App:
 
         # Packet table 
         COLUMNS = [
-            "MAC Address",
+            "MAC Address Hash",
             "Random MAC",
             "RSSI",
             "SSID",
@@ -141,7 +151,7 @@ class App:
     
     def save(self):
         # Save pcap
-        self.engine.saveData()
+        self.engine.saveCapFile()
         
         # Save dataframe
         df = self.engine.getDataFrame(self.engine.capturedPackets)
@@ -212,7 +222,7 @@ class App:
 
         if ".cap" in self.filePath or ".pcap" in self.filePath:
             # Add the contents of the cap file to the capture engine.
-            self.engine.readFile(self.filePath)
+            self.engine.readCapFile(self.filePath)
         
         elif ".db" in self.filePath:
             # Display the saved summaries in the database
@@ -220,7 +230,7 @@ class App:
             self.updateSummaries(sql.fetchAll(conn, "captures"))
 
         else :
-            print(f"{bcolors.WARNING}WARNING - File type not supported!{bcolors.ENDC}")
+            print(f"{bcolors.WARNING}File type not supported!{bcolors.ENDC}")
             self.filePath = None
         
         # Disable read button after read
@@ -259,9 +269,10 @@ class App:
         ]
         for pktInfo in pktsInfo:
             try:
+                pktInfo["sender_addr"] = md5(pktInfo["sender_addr"].encode()).hexdigest() # MD5 checksum of the MAC Address
                 summary = tuple([pktInfo[field] for field in SUMMARY_FIELDS])
-                self.__macAddresses.append(summary[0])
-                numUniqueDevices = len(set(self.__macAddresses))
+                self.__macAddresses.add(summary[0])
+                numUniqueDevices = len(self.__macAddresses)
                 self.numUniqueDevices.set(f"Unique Devices: {numUniqueDevices}")
                 self.treeView.insert("", 'end', values=summary)
             except:
@@ -324,7 +335,7 @@ if __name__ == "__main__":
         checkDependencies()
         main()
     except Exception as e:
-        print(f"{bcolors.FAIL}ERROR - {e}\nCleaning up...{bcolors.ENDC}")
+        print(f"{bcolors.FAIL}{e}\nCleaning up...{bcolors.ENDC}")
         try:
             engine = CaptureEngine.getInstance()
             engine.exitGracefully()

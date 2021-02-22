@@ -1,10 +1,13 @@
 """
-    Capture Engine module.
+    @file captureEngine.py
+    @brief Capture Engine module.
 
-    Author: Yacin Belmihoub-Martel @yacinbm (yacin.belmihoubmartel@gmail.com)
+    @author Yacin Belmihoub-Martel @yacinbm (yacin.belmihoubmartel@gmail.com)
 
-    TODO: 
-        Create a packet analyser class to seperature packet capture and interpretation.
+    TODO:
+        *   Create a packet analyser class to seperature packet capture and interpretation.
+        *   Create a class for instances instead of having just a string
+            and manage the setup from within that class.
 """
 import os
 import sys
@@ -15,12 +18,7 @@ import re
 # Executing external processes
 import subprocess
 # Colored prints
-from source.cliColors import bcolors
-
-# TODO: 
-# * Create a class for instances instead of having just a string
-#   and manage the setup from within that class.
-
+from .cliColors import bcolors
 
 # External modules
 try:
@@ -42,8 +40,7 @@ except ImportError:
             f"\n\tpip install netaddr{bcolors.ENDC}")
 
 class CaptureEngine:
-    """
-        Capture engine component. This is a singleton component, meaning that only one capture engine
+    """! Capture engine component. This is a singleton component, meaning that only one capture engine
         can exist at any time. This is so we can revert back the interface in case of a problem.
 
         use:
@@ -55,43 +52,18 @@ class CaptureEngine:
             data = captureEngine.extractData(pkts)
             captureEngine.exitGracefully()
 
-        Class arguments:
-            interface       -   [String] Interface to do the capture on. Not required if filePath was
-                                specified, as the engine will start in offline mode
-            log             -   [Bool] Specifies if the traffic captured over the air will be saved
-                                to the disk in pcap format. The saved data is the raw data captured
-                                from Scapy. 
-            bpFilter        -   [String] Berkley Packet Filter to determine what packets are to be 
-                                captured. For more info, see https://biot.com/capstats/bpf.html.
-                                By default, the engine only capture probe requests.
-            rssiThreshold   -   [Int] RSSI threshold filter in dBm. If the received RSSI is lower than
-                                the threshold, the packet will be ignored. The default value is minus
-                                infinity, so all the packets are kept.
-
-        Class attributes:
-            capturedPackets -   [List] List of scapy packets captured by the engine.
-
-
-        Class methods:
-            getInstance()   -   Return the current instance of the CaptureEngine component
-            setLogging(bool)-   Enables or disables logging.
-            setInterface(str)   -   Sets the name of the interface to be used. Interface must support monitor
-                                    mode.
-            readFile(str)   -   Read capture file from given path. Adds the read packets to the packet list.
-            startCapture()  -   Starts a capture on the configured interface. If no interface was selected at
-                                creation, it run capture on the first compatible one. The capture is
-                                non-blocking, meaning you can start a capture and do other stuff at the same
-                                time.
-            stopCapture()   -   Stops the capture on the configured interface.
-            getDataFrame(pkts)  -   Takes a single packet, or a list of packets, and extracts the 
-                                    relenvant Dot11 and Radio tap informations from it. a pandas
-                                    data frame with all relevant data.
-            setRssiThreshold(rssiThreshold) -   Sets the RSSI threshold.
-            exitGracefully()    -   Reverts the interface back into managed mode.
+        @param interface    [Optional](str) Interface to do the capture on. If no interface is specified, the engine will detect the first
+                            compatible one and use it.
+        @param logPath      [Optional](str) Log directory where the raw scapy captures will be saved upon stoping the capture. If no directory
+                            is specified, the raw scapy captures will not automatically be saved to the disk.
+        @param bpFilter     [Optional](str) Berkley Packet Filter to determine what packets are to be captured. For more info, 
+                            see https://biot.com/capstats/bpf.html. By default, the engine only capture probe requests.
+        @param rssiThreshold    [Optional](str) Received Signal Strength Indicator (RSSI) capture threshold. If the captured packet has a 
+                                lower RSSI than the one specified, it will be ignored. If no rssiThreshold is given, all packets will
+                                be captured, regardless of their RSSI value.
     """
     def getInstance():
-        """
-            Return the capture engine instance.
+        """! Returns the capture engine instance.
         """
         if CaptureEngine.__instance == None:
             return CaptureEngine()
@@ -99,15 +71,17 @@ class CaptureEngine:
             return CaptureEngine.__instance
     
     __instance = None
-    def __init__(self, interface=None, log=False, bpFilter=None, rssiThreshold=float("-inf")):
+    def __init__(self, interface=None, logPath=None, bpFilter=None, rssiThreshold=float("-inf")):
         if not CaptureEngine.__instance:
             # Save singleton instance
             CaptureEngine.__instance = self
             
-            # Attributes
-            self.capturedPackets = []
+            # Public Attributes
+            self.capturedPackets = [] #!< List of raw scapy packets captured using the interface, or by reading a capture file.
+
+            # Private Attributes
             self.__interface = interface
-            self.__log = log
+            self.__logPath = logPath if logPath else None
             self.__running = False
             self.__filter = "wlan type mgt subtype probe-req" if bpFilter is None else bpFilter
             self.__rssiThreshold = rssiThreshold
@@ -162,23 +136,22 @@ class CaptureEngine:
         newInterface = interface + "mon"
         
         if not self.__checkMonitorMode(newInterface) :
-            raise RuntimeError(f'Failed to set {interface} in monitor mode! '
-                                f'Check if {interface} supports monitor mode with:\n\tiwconfig')
+            raise RuntimeError(f'{bcolors.FAIL}Failed to set {interface} in monitor mode! '
+                                f'Check if {interface} supports monitor mode with:\n\tiwconfig{bcolors.ENDC}')
         
         return newInterface
 
     def __disableMonitorMode(self, interface):
         """
-            Set the current 
+            Sets the given interface back to managed mode.
         """
         print(f"Setting {interface} back to Managed mode...")
         output = subprocess.call(["sudo", "airmon-ng", "stop", interface], stdout=open(os.devnull, 'wb'))
         if output != 0:
-            raise RuntimeError(f'airmon-ng stop {interface} failed!')
+            raise RuntimeError(f'{bcolors.FAIL}airmon-ng stop {interface} failed! {interface} may need to be set to managed mode manually.')
 
     def getCompatibleInterfaces(self):
-        """
-            Returns a dict of all compatible interfaces and their current operating mode.
+        """! Returns a dict of all compatible interfaces and their current operating mode.
         """
         output = subprocess.check_output(["iwconfig"],stderr=open(os.devnull, 'wb')).decode("utf-8").split("\n\n")
         output = list(filter(None, output)) # Remove empty strings
@@ -218,8 +191,8 @@ class CaptureEngine:
             pass
         
     def setLogging(self, enableLog):
-        """
-            Enables or disables logging according to value
+        """! Enables or disables logging according to value
+        @param enableLog (bool) Enable or disable logging (True or False).
         """
         # Check input param
         if type(enableLog) is not bool:
@@ -230,11 +203,11 @@ class CaptureEngine:
             print(f"{bcolors.WARNING}Please stop the engine before changing parameters.{bcolors.ENDC}")
             return
 
-        self.__log = enableLog
+        self.__logPath = enableLog
     
     def setInterface(self, interface):
-        """
-            Enables or disables logging according to value
+        """! Changes the interface.
+        @param interface (str) Name of the interface to use.
         """
         # Check input param
         if type(interface) is not str:
@@ -249,6 +222,10 @@ class CaptureEngine:
         self.__interface = interface
     
     def setRssiThreshold(self, rssiThreshold):
+        """! Sets the RSSI threshold filter. Packets with a lower RSSI
+        then the threshold will be ignored.
+        "param int rssiThreshold: The Received Signal Strength (RSSI) threshold.
+        """
         # Check if engine running
         if self.__running:
             print(f"{bcolors.WARNING}Please stop the engine before changing parameters.{bcolors.ENDC}")
@@ -257,7 +234,10 @@ class CaptureEngine:
         # Update interface
         self.__rssiThreshold = rssiThreshold
 
-    def readFile(self, filePath):
+    def readCapFile(self, filePath):
+        """! Reads the capture file and appends the packets to the captured packets list.
+        @param filePath (str) Path to the capture file to be read.
+        """
         # Check input param
         if type(filePath) != str:
             print(f"{bcolors.WARNING}filePath should be a string.{bcolors.ENDC}")
@@ -274,8 +254,9 @@ class CaptureEngine:
         print(f"Read {len(pkts)} packets.")
 
     def startCapture(self):
-        """
-            Starts the capture on the engine interface.
+        """! Starts the packet capture. This method is asynchronous,
+        meaning that it is non-blocking. The capture will keep going
+        until the stopCapture() method is called.
         """
         self.__setup()
         print("Starting capture...")
@@ -283,8 +264,7 @@ class CaptureEngine:
         self.__running = True
     
     def stopCapture(self):
-        """
-            Stops the capture on the sniffer.
+        """! Stops the packet capture.
         """
         if self.__running:
             print("Stoping capture.")
@@ -294,18 +274,21 @@ class CaptureEngine:
             print(f"{bcolors.WARNING}No capture currently running.{bcolors.ENDC}")
 
         # Log captured data
-        if self.__log:
-            self.saveData()
+        if self.__logPath:
+            try:
+                self.saveCapFile(self.__logPath)
+            except Exception as e:
+                print(f"{bcolors.WARNING}Warning - Got error while saving raw capture to disk: {e}{bcolors.ENDC}")
 
         # revert back interface
         self.exitGracefully()
 
     def getDataFrame(self,pkts):
-        """
-            Gets a list of probe request packets and extracts the relevant
-            fields. 
-            
-            Returns a pandas dataFrame containing all the extracted data.
+        """! Builds a pandas dataframe from the given scapy packets list. 
+        The data fields are Dot11 (see 802.11 standard for more details),
+        and RadioTap fields (see https://scapy.readthedocs.io/en/latest/api/scapy.layers.dot11.html#scapy.layers.dot11.RadioTap
+        for more details)
+        @param pkts (list) List of scapy packets containing data to be extracted
         """
         listDict = []
         for pkt in pkts:
@@ -329,8 +312,7 @@ class CaptureEngine:
         return pd.DataFrame.from_dict(listDict).astype(str)
 
     def exitGracefully(self):
-        """
-            Reverts the wireless adapter to managed mode and does a cleanup.
+        """! Cleans up the setup and reverts the interface back to managed mode.
         """
         self.__disableMonitorMode(self.__interface)
 
@@ -384,20 +366,20 @@ class CaptureEngine:
         
         return dataDict
         
-    def saveData(self):
-        """
-            Save pcap log file to log directory.
+    def saveCapFile(self, logDir):
+        """! Saves a pcap log file to the given directory. The log file
+        contains raw scapy captures and is named with date time, as well as 
+        the interface where it was captured on
+        @param logDir (str) Path to the output directory.
         """
         # Create output folder if missing
         Path("./log").mkdir(parents=True, exist_ok=True)
         # Save .pcap file
         dateTime = datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
         fileName = f"sniffed_{self.__interface}_{dateTime}.pcap"
-        dirName = os.path.dirname(__file__)
-        filePath = os.path.join(dirName, f"../log/{fileName}")
+        filePath = os.path.join(logDir, fileName)
         wrpcap(filePath, self.capturedPackets)
-        print(f"Saved to /log/{fileName}")
-
+        print(f"{bcolors.OKGREEN}Saved capfile to {filePath}{bcolors.ENDC}")
 
     def __getDot11Fields(self, pkt):
         """

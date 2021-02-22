@@ -1,8 +1,9 @@
 #!/usr/bin/env python3
 """
-    Probe Request Analyser - CLI with SQL
+    @file cli.py
+    @brief Probe Request Analyser - CLI
 
-    Author: Yacin Belmihoub-Martel @yacinbm (yacin.belmihoubmartel@gmail.com)
+    @author Yacin Belmihoub-Martel @yacinbm (yacin.belmihoubmartel@gmail.com)
 
     Inspired by wifite (https://github.com/derv82/wifite)
     
@@ -17,10 +18,6 @@
         sudo ./cli --printDb --noCap > database.txt
 
     For help on how to use the app, run with -h or --help.
-
-    TODO: 
-        * Identify most relevant fields
-        * Cleanup corrupted data (ex. SSID)
     
     =========================
     = QCA6174A INSTALLATION =
@@ -54,9 +51,10 @@
     Now reboot your system to make sure the wlan interface is still showing with ifconfig.
 
     TODO:
-        - Filter the received request with a variable RSSI value
-            * Have an input parameter that changes the threshold
+        * Identify most relevant fields
 """
+VERSION_STRING = "0.1"
+
 import os # File management
 from shutil import which # Python implementation of which
 from datetime import datetime
@@ -66,28 +64,30 @@ from pathlib import Path
 import sys
 import argparse # Argument parsing
 
+# Import top level directory
+sys.path.insert(0,'../../')
+
 # Capture Engine Module
-from source.captureEngine import CaptureEngine
+from proberequestanalyser.source.captureEngine import CaptureEngine
 
 # Colored prints
-from source.cliColors import bcolors
+from proberequestanalyser.source.cliColors import bcolors
 
 # SQLite3
-import source.sqlManager as sql
+import proberequestanalyser.source.sqlManager as sql
 # Database Constants
 DB_NAME = "captures.db"
 TABLE_NAME = "captures"
 
 def programInstalled(programName):
-    """
-        Return true iff the program is installed on the machine.
+    """! Returns true iff the program is installed on the machine.
+    @param programName (str) Name of the program
     """
     return which(programName)
 
 def checkDependencies():
-        """
-            Check if all wifi monitoring dependencies are installed.
-            Returns true iff all dependencies are installed, else returns false
+        """! Check if all wifi monitoring dependencies are installed.
+        Returns true iff all dependencies are installed, else returns false
         """
         dependencies = ["aircrack-ng", "airodump-ng"]
         for dep in dependencies:
@@ -107,9 +107,10 @@ def __buildParser():
     optionGroup.add_argument("--interface", help="Interface to do capture on. "
                                 "If no interface is selected, the first compatible one will be used.",
                                 type=str, action="store", dest="interface", default=None)
-    optionGroup.add_argument("--log", help="Enables logging to .pcap file.",
-                                action="store_true", dest="log", default=False)
-    optionGroup.add_argument("--noCap", help="Doesn't capture anything. Useful to print db.",
+    optionGroup.add_argument("--logPath", help="Path to the log directory where you want to automatically save the raw captures."
+                                "If no path is given, the raw data won't be saved to the disk." ,
+                                type=str, action="store", dest="logPath", default=False)
+    optionGroup.add_argument("--noCap", help="Doesn't capture anything. Useful to print db without doing a capture.",
                                 action="store_true", dest="noCap", default=False)
     optionGroup.add_argument("--printDb", help="Prints the contents of the database to the console. "
                                 "You can output the results to a text file by echoing to a text file.",
@@ -118,10 +119,9 @@ def __buildParser():
     return parser
 
 def main():
+    """! This is where the magic happens.
     """
-        This is where the magic happens.
-    """
-    print(f"{bcolors.HEADER}=== Probe Request Analyser V0.1 ==={bcolors.ENDC}")
+    print(f"{bcolors.HEADER}{bcolors.BOLD}=== Probe Request Analyser V{VERSION_STRING} ==={bcolors.ENDC}")
     # Build the argument parser
     parser = __buildParser()
     
@@ -130,7 +130,7 @@ def main():
     
     # Create capture engine
     if not options.noCap:
-        engine = CaptureEngine(options.interface, log=options.log)
+        engine = CaptureEngine(options.interface, logPath=options.logPath)
 
         engine.startCapture()
         
@@ -146,7 +146,7 @@ def main():
         # Extract relevant data fields
         df = engine.getDataFrame(pkts)
     
-        if options.log :
+        if options.logPath :
             # Create output folder
             Path("./log").mkdir(parents=True, exist_ok=True)
             print("Saving extracted data to csv...")
@@ -176,14 +176,14 @@ def main():
 
 if __name__ == "__main__":
     if os.getuid() != 0:
-        exit("Run as root.")
+        exit(f"{bcolors.FAIL}Run as root.{bcolors.ENDC}")
     
     # Keyboard Interrupt handleing
     try:
         checkDependencies()
         main()
     except Exception as e:
-        print(f"{bcolors.FAIL}ERROR - {e}\nCleaning up...{bcolors.ENDC}")
+        print(f"{bcolors.FAIL}{e}\nCleaning up...{bcolors.ENDC}")
         try:
             engine = CaptureEngine.getInstance()
             engine.exitGracefully()
