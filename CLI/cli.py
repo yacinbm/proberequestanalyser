@@ -120,12 +120,12 @@ def main():
     
         if options.logPath :
             # Create output folder
-            Path("./log").mkdir(parents=True, exist_ok=True)
+            Path(options.logPath).mkdir(parents=True, exist_ok=True)
             print("Saving extracted data to csv...")
             dateTime = datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
             
             # Save dataframe
-            df.to_csv(f"./log/dataFrame_{options.interface}_{dateTime}.csv")
+            df.to_csv(f"{options.logPath}/dataFrame_{options.interface}_{dateTime}.csv")
             
             # Save to SQLite
             print("Saving extracted data to local sql db...")
