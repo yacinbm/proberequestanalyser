@@ -7,9 +7,8 @@
 
     Inspired by wifite (https://github.com/derv82/wifite)
     
-    This application aims to estimate the distance of a user based on the strength 
-    of the received probe requests coming from a device. It uses scaby to sniff
-    live traffic from the air and analyzes the packets directly.
+    This is a sample application to demonstrate the uses of the captureEngine component.
+    It uses scaby to sniff live traffic from the air and analyzes the packets directly.
 
     When launched with the --log option, the CLI will generate two log files,
     a .pcap and a .csv file to conserve the captured data. It will also create or
@@ -102,7 +101,7 @@ def main():
     
     # Create capture engine
     if not options.noCap:
-        engine = CaptureEngine(options.interface, logPath=options.logPath)
+        engine = CaptureEngine(options.interface)
 
         engine.startCapture()
         
@@ -119,25 +118,21 @@ def main():
         df = engine.buildDataframe(pkts)
     
         if options.logPath :
-            # Create output folder
-            Path(options.logPath).mkdir(parents=True, exist_ok=True)
-            print("Saving extracted data to csv...")
-            dateTime = datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
+            # Save .cap file
+            engine.saveCapFile(options.logPath)
             
             # Save dataframe
+            print("Saving extracted data to csv...")
+            dateTime = datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
             df.to_csv(f"{options.logPath}/dataFrame_{options.interface}_{dateTime}.csv")
             
-            # Save to SQLite
+            # Update Database
             print("Saving extracted data to local sql db...")
-            # Get connection
             conn = sql.connect(os.path.abspath(options.logPath+DB_NAME))
             if not conn:
                 # Sanity check
                 return
-            
-            # Save to database
             sql.saveDfToDb(conn,TABLE_NAME,df)
-            # Close connection
             conn.close()
 
         print("Cleaning up...")

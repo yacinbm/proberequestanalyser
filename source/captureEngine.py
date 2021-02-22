@@ -45,10 +45,12 @@ class CaptureEngine:
 
         use:
         @code{.py}
-            captureEngine = CaptureEngine(interface="wan0", logPath="./log")
+            captureEngine = CaptureEngine(interface="wan0")
             captureEngine.startCapture()
             [...do stuff here...]
             captureEngine.stopCapture()
+            # Save raw cap file
+            captureEngine.saveCapFile("../log/")
             pkts = catureEngine.capturedPackets
             data = captureEngine.buildDataframe(pkts)
             captureEngine.exitGracefully()
@@ -73,7 +75,7 @@ class CaptureEngine:
             return CaptureEngine.__instance
     
     __instance = None
-    def __init__(self, interface=None, logPath=None, bpFilter=None, rssiThreshold=float("-inf")):
+    def __init__(self, interface=None, bpFilter=None, rssiThreshold=float("-inf")):
         """!
         Initialise the singleton object.
         """
@@ -86,7 +88,6 @@ class CaptureEngine:
 
             # Private Attributes
             self.__interface = interface
-            self.__logPath = logPath if logPath else None
             self.__running = False
             self.__filter = "wlan type mgt subtype probe-req" if bpFilter is None else bpFilter
             self.__rssiThreshold = rssiThreshold
@@ -194,21 +195,6 @@ class CaptureEngine:
                 self.capturedPackets.append(pkt)
         except:
             pass
-        
-    def setLogging(self, enableLog):
-        """! Enables or disables logging according to value
-        @param enableLog (bool) Enable or disable logging (True or False).
-        """
-        # Check input param
-        if type(enableLog) is not bool:
-            print(f"{bcolors.WARNING}enableLog should be a boolean.{bcolors.ENDC}")
-        
-        # Check if engine running
-        if self.__running:
-            print(f"{bcolors.WARNING}Please stop the engine before changing parameters.{bcolors.ENDC}")
-            return
-
-        self.__logPath = enableLog
     
     def setInterface(self, interface):
         """! Changes the interface.
@@ -277,13 +263,6 @@ class CaptureEngine:
             self.__running = False
         else:
             print(f"{bcolors.WARNING}No capture currently running.{bcolors.ENDC}")
-
-        # Log captured data
-        if self.__logPath:
-            try:
-                self.saveCapFile(self.__logPath)
-            except Exception as e:
-                print(f"{bcolors.WARNING}Warning - Got error while saving raw capture to disk: {e}{bcolors.ENDC}")
 
         # revert back interface
         self.exitGracefully()
@@ -378,7 +357,8 @@ class CaptureEngine:
         @param logDir (str) Path to the output directory.
         """
         # Create output folder if missing
-        Path("./log").mkdir(parents=True, exist_ok=True)
+        Path(logDir).mkdir(parents=True, exist_ok=True)
+        
         # Save .pcap file
         dateTime = datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
         fileName = f"sniffed_{self.__interface}_{dateTime}.pcap"

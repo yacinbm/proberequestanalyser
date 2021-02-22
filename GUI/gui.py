@@ -66,8 +66,6 @@ class App:
         self.__filePath = None
         self.__rssiThreshold = IntVar(master)
         self.__rssiThreshold.set(-100)
-        self.__log = BooleanVar(master)
-        self.__log.set(False)
         self.__numUniqueDevices = IntVar() # Used to identify surrounding devices
         self.__numUniqueDevices.set(f"Unique Devices: {0}")
         
@@ -163,7 +161,11 @@ class App:
     
     def save(self, directory=os.path.abspath("../log")):
         """!
-        Save the capture data in ../log/
+        Save the capture data in ../log/. This will output a .csv containing the extracted dataframe,
+        a .pcap file containing raw capture data and a .db containing the most relevant data in the 
+        captured packets. Note, if a capture.db file already exists, it will be updated with the 
+        captured data.
+        @param directory    Output directory for the log data.
         """
         # Save pcap
         self.__engine.saveCapFile(directory)
@@ -190,14 +192,12 @@ class App:
         Start a probe request capture on the selected interface.
         """
         # Capture engine config
-        log = self.__log.get()
         iface = self.__interface.get()
         rssiThreshold = self.__rssiThreshold.get()
         
         try:
             # Update config
             self.__engine.setInterface(iface)
-            self.__engine.setLogging(log)
             self.__engine.setRssiThreshold(rssiThreshold)
             # Start capture
             self.__engine.startCapture()
