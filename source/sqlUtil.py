@@ -32,7 +32,7 @@ def tableExists(connection, tableName):
     @return Returns True iff the table exists in the database.
     """
     c = connection.cursor()
-    c.execute(f"SELECT name FROM sqlite_master WHERE type=table AND name={tableName}")
+    c.execute(f"SELECT name FROM sqlite_master WHERE type='table' AND name='{tableName}'")
 
     if c.fetchone()[0]:
         return True

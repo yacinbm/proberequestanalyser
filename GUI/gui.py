@@ -161,29 +161,24 @@ class App:
         finally:
             self.__master.quit()
     
-    def save(self):
+    def save(self, directory=os.path.abspath("../log")):
         """!
-        Save the capture data.
+        Save the capture data in ../log/
         """
         # Save pcap
-        self.__engine.saveCapFile()
+        self.__engine.saveCapFile(directory)
         
         # Save dataframe
-        df = self.__engine.getDataFrame(self.__engine.capturedPackets)
+        df = self.__engine.buildDataframe(self.__engine.capturedPackets)
         dateTime = datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
         fileName = f"dataFrame_{self.__interface.get()}_{dateTime}.csv"
-        dirName = os.path.dirname(__file__)
-        filePath = os.path.join(dirName, f"./log/{fileName}")
-        df.to_csv(f"{filePath}")
-        print(f"Saved Captured data dataframe to log/{fileName}")
+        filePath = os.path.join(directory, fileName)
+        df.to_csv(filePath)
+        print(f"Saved Captured data dataframe to ../log/{fileName}")
 
-        # Insert the new captures to the database
-        
-        if ".db" in filePath:
-            dbName = self.__filePath
-        else:
-            dbName = DB_NAME
-        conn = sql.connect(dbName)
+        # Update database
+        dbPath = os.path.join(directory, DB_NAME)
+        conn = sql.connect(DB_NAME)
         sql.saveDfToDb(conn, TABLE_NAME, df)
         print("Updated the database.")
         
@@ -314,7 +309,7 @@ class App:
         # Check if packets are yet to be displayed
         if self.__previousNumCapPkt < len(self.__engine.capturedPackets):
             missingPkts = self.__engine.capturedPackets[self.__previousNumCapPkt:-1]
-            missingPktsInfo = self.__engine.getDataFrame(missingPkts).to_dict('records')
+            missingPktsInfo = self.__engine.buildDataframe(missingPkts).to_dict('records')
 
             # Get pkt summary info
             self.updateSummaries(missingPktsInfo)

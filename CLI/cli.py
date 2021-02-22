@@ -47,7 +47,7 @@ from source.cliColors import bcolors
 import source.sqlUtil as sql
 
 # Database Constants
-DB_NAME = "../log/captures.db" #!< Name of the local SQLite database
+DB_NAME = "captures.db" #!< Name of the local SQLite database
 TABLE_NAME = "captures" #!< Name of the SQLite database table
 
 def programInstalled(programName):
@@ -130,7 +130,7 @@ def main():
             # Save to SQLite
             print("Saving extracted data to local sql db...")
             # Get connection
-            conn = sql.connect(os.path.abspath(DB_NAME))
+            conn = sql.connect(os.path.abspath(options.logPath+DB_NAME))
             if not conn:
                 # Sanity check
                 return
