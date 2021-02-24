@@ -13,9 +13,9 @@ import sqlite3
 from .cliColors import bcolors
 
 def connect(dbAddr):
-    """ Connect to the target SQLite database.
-    @param dbAddr   (str) Address of the SQLite database.
-    @return (sqlite3.Connection) SQLite 3 connection object to the target database. In case of an 
+    """! @brief Connect to the target SQLite database.
+    @param dbAddr   \b str Address of the SQLite database.
+    @return \b sqlite3.Connection SQLite 3 connection object to the target database. In case of an 
     error, returns None.
     """
     try:
@@ -26,10 +26,10 @@ def connect(dbAddr):
         return None
 
 def tableExists(connection, tableName):
-    """! Checks if the table exists in the database.
-    @param connection   (SQLite3 Connection Object) Connection object to the database.
-    @param tableName (str) Name of the target table
-    @return Returns True iff the table exists in the database.
+    """! @brief Checks if the table exists in the database.
+    @param connection   \b SQLite3 Connection Object Connection object to the database.
+    @param tableName \b str Name of the target table
+    @return \b bool Returns True iff the table exists in the database.
     """
     c = connection.cursor()
     c.execute(f"SELECT name FROM sqlite_master WHERE type='table' AND name='{tableName}'")
@@ -40,10 +40,10 @@ def tableExists(connection, tableName):
         return False
 
 def getColumnsName(connection, tableName):
-    """! Returns a list of the names of the columns of the target table.
-    @param connection   (SQLite3 Connection Object) Connection object to the database.
-    @param tableName    (str) Name of the target table
-    @return List of the column names of the target table. If the table does not exist, 
+    """! @brief Returns a list of the names of the columns of the target table.
+    @param connection   \b SQLite3 Connection Object Connection object to the database.
+    @param tableName    \b str Name of the target table
+    @return \b list List of the column names of the target table. If the table does not exist, 
             returns an empty list.
     """
     if not tableExists(tableName):
@@ -54,10 +54,10 @@ def getColumnsName(connection, tableName):
     return names
 
 def saveDfToDb(connection, tableName, df):
-    """! Save Pandas dataframe to database.
-    @param connection   (SQLite3 Connection Object) Connection object to the database.
-    @param tableName (str) Name of the target table in the database.
-    @param df   (pandas.DataFrame) Dataframe to be saved to the database.
+    """! @brief Save Pandas dataframe to database.
+    @param connection   \b SQLite3 Connection Object Connection object to the database.
+    @param tableName \b str Name of the target table in the database.
+    @param df   \b pandas.DataFrame Pandas dataframe to be saved to the database.
                 The columns of the dataframe to be saved are defined in TABLE_COLUMNS.
     """
     # Create cursor
@@ -110,10 +110,10 @@ def saveDfToDb(connection, tableName, df):
     connection.commit()
 
 def fetchAll(connection, tableName):
-    """! Returns a list of dictionnaries for every row of the table.
-    @param connection   (sqlite3.Connection) Connection object to the target sqlite database.
-    @param tableName    (str) Name of the target table.
-    @return List of dictionnaries for every row of the table. If the table does not exist, return
+    """! @brief Returns a list of dictionnaries for every row of the table.
+    @param connection   \b sqlite3.Connection Connection object to the target sqlite database.
+    @param tableName    \b str Name of the target table.
+    @return \b list List of dictionnaries for every row of the table. If the table does not exist, return
             an empty list
     """
     if not tableExists(connection, tableName):

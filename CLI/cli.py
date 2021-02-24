@@ -22,7 +22,8 @@
     TODO:
         * Identify most relevant fields
 """
-VERSION_STRING = "V0.1" #!< CLI Version String
+## CLI Version String
+VERSION_STRING = "V0.1"
 
 import os # File management
 from shutil import which # Python implementation of which
@@ -46,17 +47,20 @@ from source.cliColors import bcolors
 import source.sqlUtil as sql
 
 # Database Constants
-DB_NAME = "captures.db" #!< Name of the local SQLite database
-TABLE_NAME = "captures" #!< Name of the SQLite database table
+## Name of the local SQLite database
+DB_NAME = "captures.db"
+## Name of the SQLite database table
+TABLE_NAME = "captures"
 
 def programInstalled(programName):
-    """! Returns true iff the program is installed on the machine.
+    """! @brief Returns true iff the program is installed on the machine.
     @param programName (str) Name of the program
+    @return Returns true iff the program is installed on the machine.
     """
     return which(programName)
 
 def checkDependencies():
-        """! Check if all shell dependencies are installed on the current machine.
+        """! @brief Check if all shell dependencies are installed on the current machine.
         @return True iff all dependencies are installed, else returns false
         """
         dependencies = ["aircrack-ng", "airodump-ng"]
@@ -89,8 +93,7 @@ def __buildParser():
     return parser
 
 def main():
-    """! 
-    Entry point of the script.
+    """! @brief Entry point of the script.
     """
     print(f"{bcolors.HEADER}{bcolors.BOLD}=== Probe Request analyzer {VERSION_STRING} ==={bcolors.ENDC}")
     # Build the argument parser

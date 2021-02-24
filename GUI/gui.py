@@ -13,8 +13,8 @@
     and the data base is updated. If no database was specified in the browse option 
     menu, then it will be crated on the drive.
 """
-VERSION_STRING = "V0.1" #!< Version String
-
+## Version String
+VERSION_STRING = "V0.1" 
 # Native modules
 import os
 import sys
@@ -36,11 +36,13 @@ from source.cliColors import bcolors
 import source.sqlUtil as sql
 
 # Database Constants
-DB_NAME = "../log/captures.db" #!< Name of the local SQLite database
-TABLE_NAME = "captures" #!< Name of the SQLite database table
+## Name of the local SQLite database
+DB_NAME = "../log/captures.db"
+## Name of the SQLite database table
+TABLE_NAME = "captures" 
 
 class App:
-    """! Graphical User Interface application using Tkinter
+    """! @brief Graphical User Interface application using Tkinter
     @param master   (Tk tkinter object) Master Tkinter object. 
     """
     def __init__(self, master):
@@ -54,7 +56,7 @@ class App:
         # Captured Packet Summary list
         self.packetSummary = []
 
-        ## GUI ##
+        # ==== GUI ====
         self.__master = master
         master.title("Probe Request analyzer")
         
@@ -151,8 +153,7 @@ class App:
         
     # Event handlers
     def close(self):
-        """!
-        Close the GUI application.
+        """! @brief Close the GUI application.
         """
         try:
             self.__engine.exitGracefully()
@@ -160,8 +161,8 @@ class App:
             self.__master.quit()
     
     def save(self, directory=os.path.abspath("../log")):
-        """!
-        Save the capture data in ../log/. This will output a .csv containing the extracted dataframe,
+        """! @brief Save the capture data in ../log/. 
+        This will output a .csv containing the extracted dataframe,
         a .pcap file containing raw capture data and a .db containing the most relevant data in the 
         captured packets. Note, if a capture.db file already exists, it will be updated with the 
         captured data.
@@ -188,8 +189,7 @@ class App:
         self.__saveButton.config(state=DISABLED)
 
     def startCapture(self):
-        """!
-        Start a probe request capture on the selected interface.
+        """! @brief Start a probe request capture on the selected interface.
         """
         # Capture engine config
         iface = self.__interface.get()
@@ -211,8 +211,7 @@ class App:
         self.__saveButton.config(state=DISABLED)
         
     def stopCapture(self):
-        """!
-        Stop the capture.
+        """! @brief Stop the capture.
         """
         if not self.__engine:
             # Sanity check
@@ -232,8 +231,7 @@ class App:
             self.__readFileButton.config(state=NORMAL)
 
     def readFile(self):
-        """!
-        Read the file selected from the browse() function explorer window.
+        """! @brief Read the file selected from the browse() function explorer window.
         """
         # Clear packet list
         self.packetSummary = []
@@ -257,8 +255,7 @@ class App:
         self.__saveButton.config(state=NORMAL)
     
     def browse(self):
-        """!
-        Open the file explorer window to select a file to be read. The file can be a .db, .cap or .pcap.
+        """! @brief Open the file explorer window to select a file to be read. The file can be a .db, .cap or .pcap.
         """
         # Disable read button while browsing
         self.__readFileButton.config(state=DISABLED)
@@ -276,8 +273,8 @@ class App:
             self.__readFileButton.config(state=NORMAL)
 
     def updateSummaries(self, pktsInfo):
-        """!
-        Updates the displayed packet summaries table.
+        """! @brief Updates the displayed packet summaries table.
+        @param pktsInfo (DataFrame) Dataframe containing the packet info.
         """
         SUMMARY_FIELDS = [
             "sender_addr",
@@ -299,8 +296,7 @@ class App:
                 continue
 
     def checkNewCap(self):
-        """! 
-        Checks if new packets have been captured. If there is, call updateSummaries(). This method is called every second.
+        """! @brief Checks if new packets have been captured. If there is, call updateSummaries(). This method is called every second.
         """
         if not self.__engine:
             # Sanity check
@@ -320,29 +316,26 @@ class App:
         self.__master.after(1000, self.checkNewCap)
 
 def programInstalled(programName):
-    """!
-    Checks if the program is installed on the current machine.
+    """! @brief Checks if the program is installed on the current machine.
     @param programName (str) Name of the program.
     @return True iff the program is installed on the machine. 
     """
     return which(programName)
 
 def checkDependencies():
-        """!
-        Check if all required shell dependencies are installed.
-        @return True iff all dependencies are installed.
-        """
-        dependencies = ["aircrack-ng", "airodump-ng"]
-        for dep in dependencies:
-            if programInstalled(dep) is None:
-                print(f"{bcolors.FAIL}Probe Request Capture requires {dep} installed. "
-                       f"Please install aircrack-ng using:\n\tsudo apt-get install aicrack-ng{bcolors.ENDC}")
-                return False
-        return True
+    """! @brief Check if all required shell dependencies are installed.
+    @return True iff all dependencies are installed.
+    """
+    dependencies = ["aircrack-ng", "airodump-ng"]
+    for dep in dependencies:
+        if programInstalled(dep) is None:
+            print(f"{bcolors.FAIL}Probe Request Capture requires {dep} installed. "
+                    f"Please install aircrack-ng using:\n\tsudo apt-get install aicrack-ng{bcolors.ENDC}")
+            return False
+    return True
 
 def main():
-    """!
-    Start the GUI application window.
+    """! @brief Start the GUI application window.
     """
     root = Tk()
     app = App(root)

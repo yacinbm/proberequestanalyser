@@ -1,4 +1,5 @@
 """!
+    @package bcolors
     @file cliColors
     @brief Colored prints for CLI.
 
@@ -6,7 +7,7 @@
 """
 
 class bcolors:
-    """! Terminal colored output constants.
+    """! @brief Terminal colored output constants.
     """
     HEADER = '\033[95m'
     OKBLUE = '\033[94m'
