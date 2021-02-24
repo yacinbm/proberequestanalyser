@@ -10,7 +10,7 @@ Author: Yacin Belmihoub-Martel @yacinbm (yacin.belmihoubmartel@gmail.com)
 Inspired by wifite (https://github.com/derv82/wifite)
 
   
-## Intro
+# Intro
 This python app captures probe requests from a compatible wlan monitor interface. It sets up the interface on its own, captures the requests and saves them to the disk (if enabled). It can also read back .pcap files to extract relevant fields and save them in a csv format.
 
 ## CLI
@@ -24,7 +24,19 @@ sudo python3 gui.py
 
 You can change the RSSI threshold of the captured packets, the active interface, start and stop a capture, see a summary of the captured data and save the results in a .csv and .pcap. 
 
-## QCA6174A INSTALLATION
+# Software Dependencies
+The application requires the installation of *aircrack-ng* in order to programatically set wireless interface to monitor mode. To install, run:
+```bash
+sudo apt-get install aircrack-ng
+``` 
+The software also requires Python3 and pip. These come by default with the Jetson Nano L4T base image. 
+## Python Dependencies
+The application requires a few python packages to run. To install them, run:
+```bash
+pip3 install tkinter scapy pandas netaddr
+```
+
+# QCA6174A Installation
 
 When using this program with the QCA6174A, you need to install a custom firmware that supports rawmode and cryptmode. 
 
