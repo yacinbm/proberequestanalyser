@@ -369,7 +369,7 @@ class CaptureEngine:
             listDict.append({**radioTapDict, **dot11Dict})
 
         # Output dataframe
-        return pd.DataFrame.from_dict(listDict).astype\b str
+        return pd.DataFrame.from_dict(listDict).astype(str)
 
     def exitGracefully(self):
         """! @brief Cleans up the setup and reverts the interface back to managed mode.
