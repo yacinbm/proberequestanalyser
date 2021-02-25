@@ -9,7 +9,7 @@ RUN apt-get install aircrack-ng
 RUN pip3 install tkinter scapy pandas netaddr
 
 # Copy application
-COPY . /opt/probe-request-analyzer
+COPY .. /opt/probe-request-analyzer
 # Make executable
 RUN chmod +x /opt/probe-request-analyzer/DockerApp/probe_request_capture.py.py
 
