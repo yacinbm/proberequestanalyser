@@ -11,10 +11,10 @@ RUN pip3 install tkinter scapy pandas netaddr
 # Copy application
 COPY . /opt/probe-request-analyzer
 # Make executable
-RUN chmod +x /opt/probe-request-analyzer/CLI/cli.py
+RUN chmod +x /opt/probe-request-analyzer/DockerApp/probe_request_capture.py.py
 
 # Set Container Entry Point
-ENTRYPOINT [ "python3 /opt/probe-request-analyzer/CLI/cli.py" ]
+ENTRYPOINT [ "python3 /opt/probe-request-analyzer/DockerApp/probe_request_capture.py" ]
 
 # IMPORTANT NOTE:   The OS needs to have the correct
 #                   wifi drivers and the kernel module must 

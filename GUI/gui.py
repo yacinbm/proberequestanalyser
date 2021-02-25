@@ -12,6 +12,9 @@
     Upon clicking Save, a .pcap file and a .csv file are created to save the content
     and the data base is updated. If no database was specified in the browse option 
     menu, then it will be crated on the drive.
+
+    TODO:
+        * Fix display bug not showing all captured packets in the list
 """
 ## Version String
 VERSION_STRING = "V0.1" 
@@ -34,6 +37,7 @@ sys.path.insert(0,'../')
 from source.captureEngine import CaptureEngine
 from source.cliColors import bcolors
 import source.sqlUtil as sql
+from source.wifiUtil import *
 
 # Database Constants
 ## Name of the local SQLite database
@@ -46,9 +50,8 @@ class App:
     @param master   (Tk tkinter object) Master Tkinter object. 
     """
     def __init__(self, master):
-        # Capture engine
-        self.__engine = CaptureEngine()
-        self.__previousNumCapPkt = 0 # Used to update packet list
+        self.__engine = CaptureEngine.getInstance() # Capture engine object (setup at startup)
+        self.__previousNumCapPkt = 0 # Keep track of displayed packets
         
         # Device Tracking variables
         self.__macAddresses = set()
@@ -61,7 +64,7 @@ class App:
         master.title("Probe Request analyzer")
         
         # Variables
-        INTERFACES = self.__engine.getCompatibleInterfaces()
+        INTERFACES = getMonCompatIfaces()
         self.__interface = StringVar(master)
         firstInterface = list(INTERFACES.keys())[0]
         self.__interface.set(firstInterface) # First compatible interface
@@ -156,7 +159,8 @@ class App:
         """! @brief Close the GUI application.
         """
         try:
-            self.__engine.exitGracefully()
+            # Reverts the interface back to managed mode
+            setManagedMode(self.__engine.getInterface())
         finally:
             self.__master.quit()
     
@@ -191,14 +195,15 @@ class App:
     def startCapture(self):
         """! @brief Start a probe request capture on the selected interface.
         """
-        # Capture engine config
+        # Setup the interface to monitor mode
         iface = self.__interface.get()
+        monIface = setupIface(iface)
+        # Capture engine config
         rssiThreshold = self.__rssiThreshold.get()
+        self.__engine.setInterface(monIface)
+        self.__engine.setRssiThreshold(rssiThreshold)
         
         try:
-            # Update config
-            self.__engine.setInterface(iface)
-            self.__engine.setRssiThreshold(rssiThreshold)
             # Start capture
             self.__engine.startCapture()
         except Exception as e:
@@ -355,6 +360,5 @@ if __name__ == "__main__":
         print(f"{bcolors.FAIL}{e}\nCleaning up...{bcolors.ENDC}")
         try:
             engine = CaptureEngine.getInstance()
-            engine.exitGracefully()
         except:
             os._exit(0)

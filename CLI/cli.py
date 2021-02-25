@@ -37,14 +37,11 @@ import argparse # Argument parsing
 # Import top level directory
 sys.path.insert(0,'../')
 
-# Capture Engine Module
-from source.captureEngine import CaptureEngine
 
-# Colored prints
-from source.cliColors import bcolors
-
-# SQLite3
-import source.sqlUtil as sql
+from source.captureEngine import CaptureEngine # Capture Engine Module
+from source.cliColors import bcolors # Colored prints
+import source.sqlUtil as sql # SQLite3
+from source.wifiUtil import *
 
 # Database Constants
 ## Name of the local SQLite database
@@ -104,7 +101,8 @@ def main():
     
     # Create capture engine
     if not options.noCap:
-        engine = CaptureEngine(options.interface)
+        monInterface = setupIface(options.interface)
+        engine = CaptureEngine(monInterface)
 
         engine.startCapture()
         
@@ -139,7 +137,7 @@ def main():
             conn.close()
 
         print("Cleaning up...")
-        engine.exitGracefully()
+        setManagedMode(monInterface)
     
     # Print the contents of the DB
     if options.printDb:
@@ -160,6 +158,5 @@ if __name__ == "__main__":
         print(f"{bcolors.FAIL}{e}\nCleaning up...{bcolors.ENDC}")
         try:
             engine = CaptureEngine.getInstance()
-            engine.exitGracefully()
         except:
             os._exit(0)

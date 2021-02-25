@@ -13,31 +13,11 @@ import os
 import sys
 from datetime import datetime
 from pathlib import Path
-# Regular expression for terminal output parsing
-import re
-# Executing external processes
-import subprocess
-# Colored prints
-from .cliColors import bcolors
+from scapy.all import wrpcap, rdpcap, AsyncSniffer, RadioTap, scapy, Dot11, Dot11Elt
+import pandas as pd
+from netaddr import EUI
 
-# External modules
-try:
-    from scapy.all import wrpcap, rdpcap, AsyncSniffer, RadioTap, scapy, Dot11, Dot11Elt
-except ImportError:
-    exit(f"{bcolors.FAIL}Scapy is required for this application, please install with"
-            f"\n\tpip install scapy{bcolors.ENDC}")
-
-try:
-    import pandas as pd
-except ImportError:
-    exit(f"{bcolors.FAIL}Pandas is required for this application, please install with"
-            f"\n\tpip install pandas{bcolors.ENDC}")
-
-try:
-    from netaddr import EUI
-except ImportError:
-    exit(f"{bcolors.FAIL}Netaddr is required for this application, please install with"
-            f"\n\tpip install netaddr{bcolors.ENDC}")
+from .cliColors import bcolors # Colored prints
 
 class CaptureEngine:
     """! @brief Capture engine component. 
@@ -64,38 +44,13 @@ class CaptureEngine:
             data = captureEngine.buildDataframe(pkts)
             captureEngine.exitGracefully()
         @endcode
-        @param interface    [Optional]\b str Interface to do the capture on. If no interface is specified, the engine will detect the first
-                            compatible one and use it.
-        @param logPath      [Optional]\b str Log directory where the raw scapy captures will be saved upon stoping the capture. If no directory
-                            is specified, the raw scapy captures will not automatically be saved to the disk.
-        @param bpFilter     [Optional]\b str Berkley Packet Filter to determine what packets are to be captured. For more info, 
-                            see https://biot.com/capstats/bpf.html. By default, the engine only capture probe requests.
-        @param rssiThreshold    [Optional]\b numerical Received Signal Strength Indicator (RSSI) capture threshold. If the captured packet has a 
-                                lower RSSI than the one specified, it will be ignored. If no rssiThreshold is given, all packets will
-                                be captured, regardless of their RSSI value.
     """
-    def getInstance():
-        """! @brief Returns the capture engine instance.
-
-        Example Use:
-        @code{.py}
-        myCaptureEngine = CaptureEngine()
-        [...do stuff...]
-        myCaptureEngineReference = CaptureEngine.getInstance()
-        @endcode
-        @return Returns the current CaptureEngine instance. If no instance exists, returns a new instance.
-        """
-        if CaptureEngine.__instance == None:
-            return CaptureEngine()
-        else:
-            return CaptureEngine.__instance
-    
     # Variable to insure singleton
     __instance = None
-    def __init__(self, interface=None, bpFilter=None, rssiThreshold=float("-inf")):
+    def __init__(self, interface, bpFilter=None, rssiThreshold=float("-inf")):
         """! @brief The constructor.
         @param self The capture engine pointer.
-        @param interface    [Optional]\b str Interface to do the capture on. If no interface is specified, the engine will detect the first
+        @param interface    \b str Interface to do the capture on. If no interface is specified, the engine will detect the first
                             compatible one and use it.
         @param bpFilter     [Optional]\b str Berkley Packet Filter to determine what packets are to be captured. For more info, 
                             see https://biot.com/capstats/bpf.html. By default, the engine only capture probe requests.
@@ -116,106 +71,38 @@ class CaptureEngine:
             self.__running = False
             self.__filter = "wlan type mgt subtype probe-req" if bpFilter is None else bpFilter
             self.__rssiThreshold = rssiThreshold
+            self.__sniffer = AsyncSniffer(iface=self.__interface, prn=self.__captureCallback, filter=self.__filter)
 
         else:
             print(f"{bcolors.WARNING}The CaptureEngine class is a sigleton, please use getInstance() to use the previous instance of the class.{bcolors.ENDC}")
 
-    def __setup(self):
-        # Interface was given
-        if self.__interface is not None:
-            # Check if interface is compatible
-            if self.__interface not in self.getCompatibleInterfaces():
-                exit(f"{bcolors.FAIL}{self.__interface} does not support monitor mode.{bcolors.ENDC}")
-            
-            # Check if interface is already in monitor mode
-            if not self.__checkMonitorMode(self.__interface):
-                self.__interface = self.__setMonitorMode(self.__interface)
-        
-        # No given interface, select the first compatible one
-        else:
-            interfaces = self.getCompatibleInterfaces()
-            if not interfaces:
-                exit(f"{bcolors.FAIL}No compatible interface found. Make sure your wifi card is compatible with Monitor Mode.{bcolors.ENDC}")
+    def clearCapturedData(self):
+        """!
+            @brief Clears the list of packet data.
+        """
+        self.capturedPackets = []
 
-            # Check for monitor mode interfaces
-            monitorInterfaces = [name for (name, mode) in interfaces.items() if mode == "Monitor"]
-            if monitorInterfaces:
-                # Select the first compatible one
-                interface = monitorInterfaces[0]
-            
-            # No available monitor interface, configure the first compatible one
-            else:
-                interface = list(interfaces.keys())[0]
-                interface = self.__setMonitorMode(interface)
-            
-            # Save the interface name
-            self.__interface = interface
-        
-        # Setup the sniffer
-        self.__sniffer = AsyncSniffer(iface=self.__interface, prn=self.__captureCallback, filter=self.__filter)
-        return 
-    
-    def __setMonitorMode(self, interface):
-        """
-            Set the interface to monitor Mode using airmon-ng.
-            This method changes the name of the __interface parameter
-        """
-        print(f"Setting {interface} in Monitor mode...")
-        output = subprocess.call(["sudo", "airmon-ng", "start", interface], stdout=open(os.devnull, 'wb'))
-        
-        # New interface name
-        newInterface = interface + "mon"
-        
-        if not self.__checkMonitorMode(newInterface) :
-            raise RuntimeError(f'{bcolors.FAIL}Failed to set {interface} in monitor mode! '
-                                f'Check if {interface} supports monitor mode with:\n\tiwconfig{bcolors.ENDC}')
-        
-        return newInterface
+    def getInstance():
+        """! @brief Returns the capture engine instance.
 
-    def __disableMonitorMode(self, interface):
-        """
-            Sets the given interface back to managed mode.
-        """
-        print(f"Setting {interface} back to Managed mode...")
-        output = subprocess.call(["sudo", "airmon-ng", "stop", interface], stdout=open(os.devnull, 'wb'))
-        if output != 0:
-            raise RuntimeError(f'{bcolors.FAIL}airmon-ng stop {interface} failed! {interface} may need to be set to managed mode manually.')
-
-    def getCompatibleInterfaces(self):
-        """! @brief Get a dict of all compatible interfaces and their current operating mode.
-        @param self The capture engine pointer.
         Example Use:
         @code{.py}
         myCaptureEngine = CaptureEngine()
-        compatibleInterfaces = myCaptureEngine.getCompatibleInterfaces()
-        # Change the interface to the first compatible one
-        interfaceName = list(compatibleInterfaces.keys())[0]
-        myCaptureEngine.setInterface(interfaceName)
+        [...do stuff...]
+        myCaptureEngineReference = CaptureEngine.getInstance()
         @endcode
-        @return Returns dict of all compatible interfaces and their current operating mode.
+        @return Returns the current CaptureEngine instance. If no instance exists, returns a new instance.
         """
-        output = subprocess.check_output(["iwconfig"],stderr=open(os.devnull, 'wb')).decode("utf-8").split("\n\n")
-        output = list(filter(None, output)) # Remove empty strings
-        if not output:
-            exit(f"{bcolors.FAIL}No compatible interface found. Make sure your wifi card supports Monitor mode.{bcolors.ENDC}")
-        
-        interfaceDict = {}
-        for interface in output:
-            name = interface.split(" ")[0]
-            mode = interface.split("Mode:")[1].split(" ")[0]
-            interfaceDict[name] = mode
-        return interfaceDict
-
-    def __checkMonitorMode(self, interface):
+        if CaptureEngine.__instance == None:
+            return CaptureEngine(None)
+        else:
+            return CaptureEngine.__instance
+    
+    def getInterface(self):
+        """! @brief Returns the interface name.
+            @return \b str Interface name.
         """
-            Returns true iff the given interface is in Monitor mode.
-        """
-        output = subprocess.check_output(["iwconfig"],stderr=open(os.devnull, 'wb')).decode("utf-8").split("\n\n")
-        for iface in output:
-            if re.search(fr'\b{interface}\b', iface) and "Mode:Monitor" in iface:
-                return True
-        return False
-
+        return self.__interface
     
     def __captureCallback(self, pkt):
         """
@@ -251,8 +138,10 @@ class CaptureEngine:
             print(f"{bcolors.WARNING}Please stop the engine before changing parameters.{bcolors.ENDC}")
             return
 
-        # Update interface
+        # Update interface and sniffer
         self.__interface = interface
+        self.__sniffer = AsyncSniffer(iface=self.__interface, prn=self.__captureCallback, filter=self.__filter)
+
     
     def setRssiThreshold(self, rssiThreshold):
         """! @brief Sets the RSSI threshold filter. Packets with a lower RSSI then the threshold will be ignored.
@@ -315,7 +204,6 @@ class CaptureEngine:
         myCaptureEngine.stopCapture()
         @endcode
         """
-        self.__setup()
         print("Starting capture...")
         self.__sniffer.start()
         self.__running = True
@@ -337,9 +225,6 @@ class CaptureEngine:
             self.__running = False
         else:
             print(f"{bcolors.WARNING}No capture currently running.{bcolors.ENDC}")
-
-        # revert back interface
-        self.exitGracefully()
 
     def buildDataframe(self,pkts):
         """! @brief Builds a pandas dataframe from the given scapy packets list. 
@@ -370,19 +255,6 @@ class CaptureEngine:
 
         # Output dataframe
         return pd.DataFrame.from_dict(listDict).astype(str)
-
-    def exitGracefully(self):
-        """! @brief Cleans up the setup and reverts the interface back to managed mode.
-        @param self The capture engine pointer.
-        Example use:
-        @code{.py}
-        [...capture data...]
-        myCaptureEngine = CaptureEngine.getInstance()
-        # Cleanup the interface
-        myCaptureEngine.exitGracefully()
-        @endcode
-        """
-        self.__disableMonitorMode(self.__interface)
 
     def __isMacRadom(self, addr):
         """
