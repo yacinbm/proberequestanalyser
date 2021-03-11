@@ -2,7 +2,7 @@
     @file sqlUtil.py
     @brief SQLite manager for the extracted packet data Database.
 
-    This is used to save to a SQLite3 database, remotely, in memory or locally.
+    @detailed This is used to save to a SQLite3 database, remotely, in memory or locally.
 
     @author Yacin Belmihoub-Martel @yacinbm (yacin.belmihoubmartel@gmail.com)
 

@@ -17,74 +17,83 @@
           should be handled by the Host. The application should return with an error
           if monitor interface was detected.
 """
+# REMOVE THIS #
+import sys
+sys.path.append('/home/buspas/Code/wifi/proberequestanalyzer')
+######################
 ## CLI Version String
 VERSION_STRING = "V0.1"
 
 import os # File management
-from shutil import which # Python implementation of which
-from datetime import datetime
-from pathlib import Path
-
-# Terminal interface
-import sys
 import argparse # Argument parsing
-
-# Import top level directory
-sys.path.insert(0,'../')
+from pathlib import Path 
 
 from source.captureEngine import CaptureEngine
 from source.cliColors import bcolors
 import source.sqlUtil as sql
 from source.wifiUtil import *
+from source.threadUtil import RepeatTimer
 
 # Database Constants
 ## Time interval for syncing with the SQLite database in seconds
-DB_SYNC_INTERVAL = 60
+DB_SYNC_INTERVAL = 10
 ## Name of the SQLite database table
 TABLE_NAME = "captures"
 
-def __buildParser():
-    parser = argparse.ArgumentParser()
-
-    # Set options
-    optionGroup = parser.add_argument_group("OPTIONS")
-    optionGroup.add_argument("--interface", help="Interface to do capture on. "
-                                "If no interface is selected, the first compatible one will be used.",
-                                type=str, action="store", dest="interface", default=None)
-    optionGroup.add_argument("--logPath", help="Path to the log directory where you want to automatically save the raw captures."
-                                "If no path is given, the raw data won't be saved to the disk."
-                                "The log path should be mapped to outside of the container, or the files will be deleted." ,
-                                type=str, action="store", dest="logPath", default=False)
-    optionGroup.add_argument("--dbAddress", help="Address of the SQLite database." 
-                                "If no address is specified, the database is saved in the log folder.",
-                                type=str, action="store", dest="dbAddress", default="captures.db")
-
-    return parser
-
-def saveData(pktData, log=False):
+def __saveData(pktData, dbAddress, logRaw):
     """! @brief Saves the packet data to the SQLite database.
         This function is called every time the saveDataTimer expires in order to sync the database 
         with the captured data.
         @param pktData \b list Pandas Dataframe containing packet data.
-        @param log [Optional]\b bool Indicate if the extra log data should be saved to the disk.
+        @param dbAddress \b str Full path to the SQLite file, including the file name (e.g. "/log/myDb.db")
+        @param logRaw \b bool Indicate if the extra log data should be saved to the disk.
     """
-    # TODO
-    pass
+    if logRaw:
+        CaptureEngine.getInstance().saveCapFile()
+    
+    if not dbAddress:
+        # ../log
+        logPath = Path(__file__).parent.absolute()/"log"
+        logPath.mkdir(parents=True, exist_ok=True)
+        # ../log/capture.db
+        dbAddress = str(logPath/"capture.db")
 
-def __timerCallback():
+    # Save data to SQLite DB
+    con = sql.connect(dbAddress)
+    sql.saveDfToDb(con, TABLE_NAME, pktData)
+    
+
+def __extractPacketData(dbAddress, logRaw):
     """
         Extract the data from the captured packets
         Clear the packet list from the engine
         Save the data to the DB
+
+        TODO: Check if we're missing packets between the dataframe build and the 
     """
     captureEngine = CaptureEngine.getInstance()
     pkts = captureEngine.capturedPackets
     # Clear old packet data
     captureEngine.clearCapturedData()
     # Extract packet data and save to DB
-    pktData = CaptureEngine.buildDataframe(pkts)
-    saveData(pktData)
+    pktData = captureEngine.buildDataframe(pkts)
+    __saveData(pktData, dbAddress, logRaw)
+    
+    print(f"Captured {len(pkts)} packets.")
 
+def __buildParser():
+    parser = argparse.ArgumentParser()
+
+    # Set options
+    optionGroup = parser.add_argument_group("OPTIONS")
+    optionGroup.add_argument("--logRaw", help="Path to log raw captures. "
+                                "If unspecified, raw caps are not stored.", 
+                                action="store_true", dest="logRaw", default=False)
+    optionGroup.add_argument("--dbAddress", help="Address of the SQLite database." 
+                                "If no address is specified, the database is saved in the current folder.",
+                                type=str, action="store", dest="dbAddress", default=None)
+
+    return parser
 
 def main():
     """! @brief Entry point of the script.
@@ -99,15 +108,29 @@ def main():
     # Parse arguments
     options = parser.parse_args()
     
-    # Create capture engine
-    interface = setupIface(options.interface)
-    engine = CaptureEngine(interface)
+    # Select first monitor mode interface
+    ifaces = getMonCompatIfaces()
+    selectediface = None
+    for iface in ifaces.keys():
+        if isMonitorMode(iface):
+            selectediface = iface
+            break
+    
+    if not selectediface:
+        exit(f"{bcolors.FAIL}No monitor mode interface, enable using airmon-ng.{bcolors.ENDC}")
+
+    # Setup engine and start capture
+    engine = CaptureEngine(selectediface)
     engine.startCapture()
     
+    # Start packet extraction timer 
+    args = [options.dbAddress, options.logRaw]
+    packetExtrTimer = RepeatTimer(DB_SYNC_INTERVAL, __extractPacketData,args)
+    packetExtrTimer.start()
+
     # Capture forever
     while True:
         continue 
-
 
 if __name__ == "__main__":
     if os.getuid() != 0:
@@ -118,11 +141,10 @@ if __name__ == "__main__":
     # Keyboard Interrupt handling
     except KeyboardInterrupt:
         print("Interrupted, exiting...")
+
         try:
             engine = CaptureEngine.getInstance()
             engine.stopCapture()
-            numCapturedPkts = len(engine.capturedPackets)
-            print(f"Captured {numCapturedPkts} packets.")
         finally:
             os._exit(0)
     
@@ -132,6 +154,5 @@ if __name__ == "__main__":
         try:
             engine = CaptureEngine.getInstance()
             engine.stopCapture()
-            print(len(engine.capturedPackets))
         finally:
             os._exit(0)

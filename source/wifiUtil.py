@@ -8,7 +8,6 @@
 """
 import os
 import subprocess # Executing external processes
-import re
 from .cliColors import bcolors
 
 def getMonCompatIfaces():
@@ -49,7 +48,10 @@ def isMonitorMode(interface):
     """
     output = subprocess.check_output(["iwconfig"],stderr=open(os.devnull, 'wb')).decode("utf-8").split("\n\n")
     for iface in output:
-        if re.search(fr'\b{interface}\b', iface) and "Mode:Monitor" in iface:
+        splitOutput = iface.split()
+        name = splitOutput[0]
+        mode = splitOutput[3]
+        if interface == name and mode == "Mode:Monitor":
             return True
     return False
 

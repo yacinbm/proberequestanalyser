@@ -9,11 +9,10 @@
         *   Create a class for instances instead of having just a string
             and manage the setup from within that class.
 """
-import os
 import sys
 from datetime import datetime
 from pathlib import Path
-from scapy.all import wrpcap, rdpcap, AsyncSniffer, RadioTap, scapy, Dot11, Dot11Elt
+from scapy.all import wrpcap, rdpcap, AsyncSniffer, RadioTap, scapy, Dot11, Dot11Elt, Dot11ProbeReq
 import pandas as pd
 from netaddr import EUI
 
@@ -111,11 +110,13 @@ class CaptureEngine:
             Append the received packet to the capturedPackets list.
         """
         try:
+            # Check RSSI threshold and save
             radioTapElt = pkt.getlayer(RadioTap)
             rssi = getattr(radioTapElt, "dBm_AntSignal")
             if rssi >= self.__rssiThreshold:
                 self.capturedPackets.append(pkt)
         except:
+            # Exception handling
             pass
     
     def setInterface(self, interface):
@@ -236,6 +237,7 @@ class CaptureEngine:
         @return Returns a Pandas Dataframe containing the extracted data from the packets list.
         """
         listDict = []
+
         for pkt in pkts:
             # Radio Tap Fields extraction
             try:
@@ -250,7 +252,7 @@ class CaptureEngine:
             except Exception as e:
                 print(f"Warning - {bcolors.WARNING}{e}: Error getting dot11 data, skipping packet.{bcolors.ENDC}")
                 continue
-            
+
             listDict.append({**radioTapDict, **dot11Dict})
 
         # Output dataframe
@@ -261,6 +263,10 @@ class CaptureEngine:
             Checks if Mac address is random. 
             Return True if random, else returns False.
         """
+        if not addr:
+            # Sanity check
+            return False
+
         byteList = ['2', '3', '6', '7',  'a', 'b',  'e', 'f']
         secondByte = addr[1]
         if secondByte in byteList:
@@ -306,21 +312,22 @@ class CaptureEngine:
         
         return dataDict
         
-    def saveCapFile(self, logDir):
+    def saveCapFile(self):
         """! @brief Saves a pcap log file to the given directory. The log file
         contains raw scapy captures and is named with date time, as well as 
         the interface where it was captured on.
         @param self The capture engine pointer.
-        @param logDir \b str Path to the output directory.
         """
         # Create output folder if missing
-        Path(logDir).mkdir(parents=True, exist_ok=True)
+        logDir = Path(__file__).parent/"log"
+        logDir.mkdir(parents=True, exist_ok=True)
         
         # Save .pcap file
         dateTime = datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
         fileName = f"sniffed_{self.__interface}_{dateTime}.pcap"
-        filePath = os.path.join(logDir, fileName)
+        filePath = str(logDir/fileName)
         wrpcap(filePath, self.capturedPackets)
+
         print(f"{bcolors.OKGREEN}Saved capfile to {filePath}{bcolors.ENDC}")
 
     def __getDot11Fields(self, pkt):
@@ -334,7 +341,7 @@ class CaptureEngine:
             The "other" dot11 elements are elements that were not implemented 
             natively by Scapy. Here, we simply read those fields and present them
             in a usable format with their ID appended to the info field name,
-            i.e. the information for element ID 221 is "info21" and the data is
+            i.e. the information for element ID 21 is "info21" and the data is
             simply the binary string received.
 
             For more information on the IDs of the elements and their meaning, see 
@@ -352,8 +359,6 @@ class CaptureEngine:
         dataDict["receiver_addr"] = pkt.addr1
         dataDict["sender_addr"] = pkt.addr2
         dataDict["bssid"] = pkt.addr3
-        
-        # Mac address randomisation
         dataDict["random_mac"] = self.__isMacRadom(dataDict["sender_addr"])
 
         # Device Manufacturer name
@@ -361,8 +366,11 @@ class CaptureEngine:
 
         # Sequence Number
         SC = pkt.SC
-        hexSC = '0' * (4 - len(hex(SC)[2:])) + hex(SC)[2:]
-        dataDict["seq_num"] = int(hexSC[:-1],16)
+        if SC:
+            hexSC = '0' * (4 - len(hex(SC)[2:])) + hex(SC)[2:]
+            dataDict["seq_num"] = int(hexSC[:-1],16)
+        else:
+            dataDict["seq_num"] = None
 
         # Default SSID value
         dataDict["ssid"] = b""
@@ -382,10 +390,6 @@ class CaptureEngine:
                 name = field
                 value = getattr(dot11elt, field)
 
-                # Check if value is overflow two big to be an int, if it is, reprensent as str
-                if type(value) == int and value > sys.maxsize:
-                    value = str(value)
-
                 # Elements not decoded by Scapy contain an "info" field. 
                 # Add the element ID to differentiate them.
                 if field == "info":
@@ -396,16 +400,23 @@ class CaptureEngine:
                         # TODO: Implement decoding for relevant fields, if necessary
                         name = field + str(dot11elt.ID)
 
+                if type(value) == int and value > sys.maxsize:
+                    # Value too big for int, reprensent as str
+                    value = str(value)
+
                 # Handle Element flags
                 if type(value) == scapy.fields.FlagValue:
                     dataDict.update(self.__extractFlags(pkt.FCfield))
                     continue
                 
-                # Field already exists
-                if name in dataDict:
-                    dataDict[name] = dataDict[name] + value
-                else:
+                if name not in dataDict:
                     dataDict[name] = value
+                else:
+                    if type(dataDict[name]) != list:
+                        # Keep previous value in list
+                        dataDict[name] = [dataDict[name]]
+                    
+                    dataDict[name].append(value)
 
             # Get next dot11 element
             dot11elt = dot11elt.payload.getlayer(Dot11Elt)
