@@ -227,6 +227,25 @@ class CaptureEngine:
         else:
             print(f"{bcolors.WARNING}No capture currently running.{bcolors.ENDC}")
 
+    def saveCapFile(self, pkts):
+        """! @brief Saves the currently captured packets to a pcap log file to the given directory. 
+        The log file contains raw scapy captures and is named with date time, as well as 
+        the interface where it was captured on.
+        @param self The capture engine pointer.
+        @para pkts Raw scapy packets to be saved to the .pcap file.
+        """
+        # Create output folder if missing
+        logDir = Path(__file__).parent/"log"
+        logDir.mkdir(parents=True, exist_ok=True)
+        
+        # Save .pcap file
+        dateTime = datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
+        fileName = f"sniffed_{self.__interface}_{dateTime}.pcap"
+        filePath = str(logDir/fileName)
+        wrpcap(filePath, pkts)
+
+        print(f"{bcolors.OKGREEN}Saved capfile to {filePath}{bcolors.ENDC}")
+
     def buildDataframe(self,pkts):
         """! @brief Builds a pandas dataframe from the given scapy packets list. 
         The data fields are Dot11 (see 802.11 standard for more details),
@@ -257,22 +276,6 @@ class CaptureEngine:
 
         # Output dataframe
         return pd.DataFrame.from_dict(listDict).astype(str)
-
-    def __isMacRadom(self, addr):
-        """
-            Checks if Mac address is random. 
-            Return True if random, else returns False.
-        """
-        if not addr:
-            # Sanity check
-            return False
-
-        byteList = ['2', '3', '6', '7',  'a', 'b',  'e', 'f']
-        secondByte = addr[1]
-        if secondByte in byteList:
-            return True
-        else:
-            return False
 
     def __getRadioTapFields(self, pkt):
         """
@@ -311,25 +314,7 @@ class CaptureEngine:
                 dataDict[name] = value
         
         return dataDict
-        
-    def saveCapFile(self):
-        """! @brief Saves a pcap log file to the given directory. The log file
-        contains raw scapy captures and is named with date time, as well as 
-        the interface where it was captured on.
-        @param self The capture engine pointer.
-        """
-        # Create output folder if missing
-        logDir = Path(__file__).parent/"log"
-        logDir.mkdir(parents=True, exist_ok=True)
-        
-        # Save .pcap file
-        dateTime = datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
-        fileName = f"sniffed_{self.__interface}_{dateTime}.pcap"
-        filePath = str(logDir/fileName)
-        wrpcap(filePath, self.capturedPackets)
-
-        print(f"{bcolors.OKGREEN}Saved capfile to {filePath}{bcolors.ENDC}")
-
+    
     def __getDot11Fields(self, pkt):
         """
             This function iterates through all the received Dot11 elements in the
@@ -379,6 +364,7 @@ class CaptureEngine:
         dataDict.update(self.__extractFlags(pkt.FCfield))
 
         # Dot11 Elements
+        # Iterate through all the payloads of the packet and extract everyting
         dot11elt = pkt.getlayer(Dot11Elt)
         while dot11elt:
             ignoredFields = [
@@ -411,17 +397,30 @@ class CaptureEngine:
                 
                 if name not in dataDict:
                     dataDict[name] = value
+                # Data field exists in the dict
                 else:
-                    if type(dataDict[name]) != list:
-                        # Keep previous value in list
-                        dataDict[name] = [dataDict[name]]
-                    
-                    dataDict[name].append(value)
+                    dataDict[name] += value
 
             # Get next dot11 element
             dot11elt = dot11elt.payload.getlayer(Dot11Elt)
         
         return dataDict
+
+    def __isMacRadom(self, addr):
+        """
+            Checks if Mac address is random. 
+            Return True if random, else returns False.
+        """
+        if not addr:
+            # Sanity check
+            return False
+
+        byteList = ['2', '3', '6', '7',  'a', 'b',  'e', 'f']
+        secondByte = addr[1]
+        if secondByte in byteList:
+            return True
+        else:
+            return False
 
     def __extractFlags(self, flags):
         """

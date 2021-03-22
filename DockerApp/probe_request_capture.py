@@ -40,18 +40,30 @@ DB_SYNC_INTERVAL = 10
 ## Name of the SQLite database table
 TABLE_NAME = "captures"
 
-def __saveData(pktData, dbAddress, logRaw):
-    """! @brief Saves the packet data to the SQLite database.
+def __saveData(logRaw, dbAddress=None):
+    """
+        @brief Saves the packet data to the SQLite database.
         This function is called every time the saveDataTimer expires in order to sync the database 
         with the captured data.
-        @param pktData \b list Pandas Dataframe containing packet data.
-        @param dbAddress \b str Full path to the SQLite file, including the file name (e.g. "/log/myDb.db")
-        @param logRaw \b bool Indicate if the extra log data should be saved to the disk.
+        @param logRaw \b bool Indicated wether or not a .pcap file should be created.
+        @param dbAddress \b str Full path to the SQLite file, including the file name (e.g. "/log/myDb.db"). If none is given, create a db under ../log/capture.db
     """
-    if logRaw:
-        CaptureEngine.getInstance().saveCapFile()
+    captureEngine = CaptureEngine.getInstance()
+    # Save a copy of the data
+    pkts = captureEngine.capturedPackets
     
-    if not dbAddress:
+    # Clear packet data buffer
+    captureEngine.clearCapturedData()
+
+    # Save the raw .pcap files
+    if logRaw:
+        captureEngine.saveCapFile(pkts)
+
+    # Extract packet data and save to DB
+    pktData = captureEngine.buildDataframe(pkts)
+    
+    # Create a db if none was given
+    if dbAddress is None:
         # ../log
         logPath = Path(__file__).parent.absolute()/"log"
         logPath.mkdir(parents=True, exist_ok=True)
@@ -61,23 +73,6 @@ def __saveData(pktData, dbAddress, logRaw):
     # Save data to SQLite DB
     con = sql.connect(dbAddress)
     sql.saveDfToDb(con, TABLE_NAME, pktData)
-    
-
-def __extractPacketData(dbAddress, logRaw):
-    """
-        Extract the data from the captured packets
-        Clear the packet list from the engine
-        Save the data to the DB
-
-        TODO: Check if we're missing packets between the dataframe build and the 
-    """
-    captureEngine = CaptureEngine.getInstance()
-    pkts = captureEngine.capturedPackets
-    # Clear old packet data
-    captureEngine.clearCapturedData()
-    # Extract packet data and save to DB
-    pktData = captureEngine.buildDataframe(pkts)
-    __saveData(pktData, dbAddress, logRaw)
     
     print(f"Captured {len(pkts)} packets.")
 
@@ -124,8 +119,8 @@ def main():
     engine.startCapture()
     
     # Start packet extraction timer 
-    args = [options.dbAddress, options.logRaw]
-    packetExtrTimer = RepeatTimer(DB_SYNC_INTERVAL, __extractPacketData,args)
+    args = [options.logRaw, options.dbAddress]
+    packetExtrTimer = RepeatTimer(DB_SYNC_INTERVAL, __saveData,args)
     packetExtrTimer.start()
 
     # Capture forever
